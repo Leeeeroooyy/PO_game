@@ -16,19 +16,23 @@ func spawn_initial_camps() -> void:
 	if _actor_parent == null or _neutral_unit_scene == null:
 		return
 
-	_spawn_camp(Vector2(-770.0, -185.0), ["neutral_bruiser", "neutral_spitter"])
-	_spawn_camp(Vector2(-650.0, 90.0), ["neutral_thrower", "neutral_bruiser"])
-	_spawn_camp(Vector2(-450.0, -360.0), ["neutral_claw", "neutral_spitter"])
-	_spawn_camp(Vector2(-320.0, 330.0), ["neutral_bruiser", "neutral_thrower", "neutral_spitter"])
-	_spawn_camp(Vector2(-95.0, -255.0), ["neutral_claw", "neutral_bruiser"])
-	_spawn_camp(Vector2(-85.0, 445.0), ["neutral_spitter", "neutral_thrower"])
+	_spawn_camp(Vector2(1000.0, -220.0), ["neutral_bruiser", "neutral_spitter"])
+	_spawn_camp(Vector2(650.0, 220.0), ["neutral_thrower", "neutral_bruiser"])
+	_spawn_camp(Vector2(1030.0, 650.0), ["neutral_claw", "neutral_spitter"])
+	_spawn_camp(Vector2(500.0, 1000.0), ["neutral_bruiser", "neutral_thrower", "neutral_spitter"])
+	_spawn_camp(Vector2(-580.0, 1010.0), ["neutral_claw", "neutral_bruiser"])
+	_spawn_camp(Vector2(-205.0, 785.0), ["neutral_spitter", "neutral_thrower"])
+	_spawn_camp(Vector2(170.0, 470.0), ["neutral_bruiser", "neutral_thrower"])
+	_spawn_camp(Vector2(675.0, 505.0), ["neutral_claw", "neutral_spitter"])
 
-	_spawn_camp(Vector2(770.0, 185.0), ["neutral_bruiser", "neutral_spitter"])
-	_spawn_camp(Vector2(650.0, -90.0), ["neutral_thrower", "neutral_bruiser"])
-	_spawn_camp(Vector2(450.0, 360.0), ["neutral_claw", "neutral_spitter"])
-	_spawn_camp(Vector2(320.0, -330.0), ["neutral_bruiser", "neutral_thrower", "neutral_spitter"])
-	_spawn_camp(Vector2(95.0, 255.0), ["neutral_claw", "neutral_bruiser"])
-	_spawn_camp(Vector2(85.0, -445.0), ["neutral_spitter", "neutral_thrower"])
+	_spawn_camp(Vector2(-1000.0, 220.0), ["neutral_bruiser", "neutral_spitter"])
+	_spawn_camp(Vector2(-650.0, -220.0), ["neutral_thrower", "neutral_bruiser"])
+	_spawn_camp(Vector2(-1030.0, -650.0), ["neutral_claw", "neutral_spitter"])
+	_spawn_camp(Vector2(-500.0, -1000.0), ["neutral_bruiser", "neutral_thrower", "neutral_spitter"])
+	_spawn_camp(Vector2(580.0, -1010.0), ["neutral_claw", "neutral_bruiser"])
+	_spawn_camp(Vector2(205.0, -785.0), ["neutral_spitter", "neutral_thrower"])
+	_spawn_camp(Vector2(-170.0, -470.0), ["neutral_bruiser", "neutral_thrower"])
+	_spawn_camp(Vector2(-675.0, -505.0), ["neutral_claw", "neutral_spitter"])
 
 
 func _spawn_camp(center: Vector2, unit_ids: Array[String]) -> void:

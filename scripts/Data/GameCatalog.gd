@@ -24,14 +24,14 @@ static func stats(max_health: float, move_speed: float, attack_damage: float, at
 	}
 
 
-static func ability(id: String, display_name: String, description: String, targeting: String, cooldown: float, range: float, radius: float, power: float) -> Dictionary:
+static func ability(id: String, display_name: String, description: String, targeting: String, cooldown: float, cast_range: float, radius: float, power: float) -> Dictionary:
 	return {
 		"id": id,
 		"display_name": display_name,
 		"description": description,
 		"targeting": targeting,
 		"cooldown": cooldown,
-		"range": range,
+		"range": cast_range,
 		"radius": radius,
 		"power": power,
 	}
@@ -111,7 +111,7 @@ static func create_unit_definitions() -> Dictionary:
 			"is_siege_unit": false,
 			"cost": 25,
 			"upgrade_cost": 60,
-			"stats": stats(90.0, 85.0, 10.0, 34.0, 1.15, 8, 6),
+			"stats": stats(90.0, 85.0, 10.0, 32.0, 1.15, 8, 6),
 		},
 		"line_mage": {
 			"id": "line_mage",
@@ -120,7 +120,7 @@ static func create_unit_definitions() -> Dictionary:
 			"is_siege_unit": false,
 			"cost": 40,
 			"upgrade_cost": 85,
-			"stats": stats(62.0, 78.0, 14.0, 135.0, 1.35, 10, 7),
+			"stats": stats(62.0, 78.0, 14.0, 120.0, 1.35, 10, 7),
 		},
 		"line_siege": {
 			"id": "line_siege",
@@ -129,7 +129,7 @@ static func create_unit_definitions() -> Dictionary:
 			"is_siege_unit": true,
 			"cost": 90,
 			"upgrade_cost": 140,
-			"stats": stats(180.0, 45.0, 38.0, 210.0, 2.25, 22, 16),
+			"stats": stats(180.0, 45.0, 38.0, 190.0, 2.25, 22, 16),
 		},
 		"neutral_bruiser": neutral("neutral_bruiser", "Forest Bruiser", 130.0, 12.0, 36.0, 12, 10),
 		"neutral_spitter": neutral("neutral_spitter", "Forest Spitter", 80.0, 11.0, 125.0, 13, 11),
@@ -142,7 +142,17 @@ static func create_enemy_hero_stats() -> Dictionary:
 	return stats(230.0, 180.0, 18.0, 85.0, 1.0, 65, 55)
 
 
-static func neutral(id: String, display_name: String, health: float, damage: float, range: float, gold: int, experience: int) -> Dictionary:
+static func create_tower_stats(tier: int = 1) -> Dictionary:
+	var clamped_tier := clampi(tier, 1, 3)
+	var health := 520.0 + float(clamped_tier - 1) * 260.0
+	var damage := 28.0 + float(clamped_tier - 1) * 18.0
+	var attack_range := 155.0 + float(clamped_tier - 1) * 10.0
+	var gold := 65 + (clamped_tier - 1) * 35
+	var experience := 45 + (clamped_tier - 1) * 25
+	return stats(health, 0.0, damage, attack_range, 0.82, gold, experience)
+
+
+static func neutral(id: String, display_name: String, health: float, damage: float, attack_range: float, gold: int, experience: int) -> Dictionary:
 	return {
 		"id": id,
 		"display_name": display_name,
@@ -150,5 +160,5 @@ static func neutral(id: String, display_name: String, health: float, damage: flo
 		"is_siege_unit": false,
 		"cost": 0,
 		"upgrade_cost": 0,
-		"stats": stats(health, 70.0, damage, range, 1.2, gold, experience),
+		"stats": stats(health, 70.0, damage, attack_range, 1.2, gold, experience),
 	}

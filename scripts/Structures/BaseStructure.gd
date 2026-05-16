@@ -1,12 +1,12 @@
 class_name BaseStructure
 extends Actor
 
-@export var size := Vector2(78.0, 92.0)
+@export var size := Vector2(115.0, 125.0)
 
 
 func configure_base(new_team: String, position: Vector2) -> void:
 	global_position = position
-	configure(new_team, GameCatalog.LANE_MIDDLE, GameCatalog.stats(1200.0, 0.0, 0.0, 0.0, 1.0))
+	configure(new_team, GameCatalog.LANE_MIDDLE, GameCatalog.stats(2600.0, 0.0, 0.0, 0.0, 1.0))
 
 
 func _physics_process(delta: float) -> void:
@@ -17,6 +17,9 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	var rect := Rect2(-size / 2.0, size)
 	var team_color := _get_team_color()
+	if is_selected:
+		draw_rect(rect.grow(9.0), Color(1.0, 0.92, 0.42, 0.92), false, 3.0)
+
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(-size.x * 0.62, size.y * 0.45),
 		Vector2(0.0, size.y * 0.68),

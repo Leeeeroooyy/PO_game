@@ -8,10 +8,12 @@ var _experience_label: Label
 var _health_label: Label
 var _hero_label: Label
 var _respawn_label: Label
+var _ability_slots: Array[Control] = []
 var _ability_name_labels: Array[Label] = []
 var _economy: EconomySystem
 var _experience: ExperienceSystem
 var _hero: HeroController
+var _selected_actor: Actor
 
 
 func _ready() -> void:
@@ -114,10 +116,30 @@ func bind(economy: EconomySystem, experience: ExperienceSystem, hero: HeroContro
 	if _hero != null:
 		if not _hero.health_changed.is_connected(_on_hero_health_changed):
 			_hero.health_changed.connect(_on_hero_health_changed)
-		_hero_label.text = "Hero: %s" % _hero.hero_id
 		_set_ability_names(_hero.get_abilities())
-		_on_hero_health_changed(_hero.health, float(_hero.stats.get("max_health", 0.0)))
+		show_selected_actor(_hero)
 		set_respawn_time(0.0)
+
+
+func show_selected_actor(actor: Actor) -> void:
+	if _selected_actor != null and is_instance_valid(_selected_actor) and _selected_actor.health_changed.is_connected(_on_selected_health_changed):
+		_selected_actor.health_changed.disconnect(_on_selected_health_changed)
+
+	_selected_actor = actor
+
+	if _selected_actor == null or not is_instance_valid(_selected_actor):
+		if _hero_label != null:
+			_hero_label.text = "Selected: none"
+		if _health_label != null:
+			_health_label.text = "HP: -"
+		return
+
+	if not _selected_actor.health_changed.is_connected(_on_selected_health_changed):
+		_selected_actor.health_changed.connect(_on_selected_health_changed)
+
+	if _hero_label != null:
+		_hero_label.text = "%s: %s" % [_selected_kind(_selected_actor), _selected_name(_selected_actor)]
+	_on_selected_health_changed(_selected_actor.health, float(_selected_actor.stats.get("max_health", 0.0)))
 
 
 func set_respawn_time(remaining: float) -> void:
@@ -127,7 +149,7 @@ func set_respawn_time(remaining: float) -> void:
 	if remaining > 0.0:
 		_respawn_label.visible = true
 		_respawn_label.text = "Respawn: %ds" % ceili(remaining)
-		if _health_label != null:
+		if _health_label != null and _selected_actor == _hero:
 			_health_label.text = "HP: dead"
 	else:
 		_respawn_label.visible = false
@@ -146,19 +168,25 @@ func _create_hud_label(text_value: String) -> Label:
 func _create_ability_slot(number: int) -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(70.0, 70.0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.tooltip_text = "No ability"
+	_ability_slots.append(panel)
 
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(box)
 
 	var icon := ColorRect.new()
 	icon.custom_minimum_size = Vector2(44.0, 36.0)
 	icon.color = Color(0.22 + float(number) * 0.04, 0.24, 0.30 + float(number) * 0.05)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(icon)
 
 	var key := Label.new()
 	key.text = str(number)
 	key.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	key.add_theme_font_size_override("font_size", 15)
 	box.add_child(key)
 
@@ -167,6 +195,7 @@ func _create_ability_slot(number: int) -> Control:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.clip_text = true
 	name_label.custom_minimum_size = Vector2(64.0, 16.0)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.add_theme_font_size_override("font_size", 9)
 	box.add_child(name_label)
 	_ability_name_labels.append(name_label)
@@ -177,11 +206,52 @@ func _create_ability_slot(number: int) -> Control:
 func _set_ability_names(abilities: Array) -> void:
 	for i in range(_ability_name_labels.size()):
 		var label := _ability_name_labels[i]
+		var slot: Control = _ability_slots[i] if i < _ability_slots.size() else null
 		if i < abilities.size():
 			var ability: Dictionary = abilities[i]
 			label.text = String(ability.get("display_name", "-"))
+			if slot != null:
+				slot.tooltip_text = _ability_tooltip(i + 1, ability)
 		else:
 			label.text = "-"
+			if slot != null:
+				slot.tooltip_text = "No ability"
+
+
+func _ability_tooltip(slot_number: int, ability: Dictionary) -> String:
+	var lines: Array[String] = []
+	lines.append("%d - %s" % [slot_number, String(ability.get("display_name", "Ability"))])
+	lines.append(String(ability.get("description", "")))
+	lines.append("")
+	lines.append("Target: %s" % _format_targeting(String(ability.get("targeting", ""))))
+	lines.append("Damage/Power: %s" % _format_number(float(ability.get("power", 0.0))))
+	lines.append("Cast range: %s" % _format_number(float(ability.get("range", 0.0))))
+	lines.append("Effect radius: %s" % _format_number(float(ability.get("radius", 0.0))))
+	lines.append("Cooldown: %ss" % _format_number(float(ability.get("cooldown", 0.0))))
+	return "\n".join(lines)
+
+
+func _format_targeting(targeting: String) -> String:
+	match targeting:
+		"direction":
+			return "Direction"
+		"single_target":
+			return "Single target"
+		"self":
+			return "Self"
+		"area":
+			return "Area"
+		"point":
+			return "Point"
+		_:
+			return targeting.capitalize()
+
+
+func _format_number(value: float) -> String:
+	if is_equal_approx(value, roundf(value)):
+		return str(roundi(value))
+
+	return "%.1f" % value
 
 
 func _on_gold_changed(gold: int) -> void:
@@ -195,5 +265,47 @@ func _on_experience_changed(level: int, experience: int, required_experience: in
 
 
 func _on_hero_health_changed(current: float, maximum: float) -> void:
+	if _selected_actor == _hero and _health_label != null:
+		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+
+
+func _on_selected_health_changed(current: float, maximum: float) -> void:
 	if _health_label != null:
 		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+
+
+func _selected_kind(actor: Actor) -> String:
+	if actor is HeroController:
+		return "Hero"
+	if actor is EnemyHeroAi:
+		return "Enemy hero"
+	if actor is LaneUnit:
+		return "Unit"
+	if actor is NeutralUnit:
+		return "Neutral"
+	if actor is SummonedCompanion:
+		return "Summon"
+	if actor is TowerStructure:
+		return "Tower"
+	if actor is BaseStructure:
+		return "Base"
+
+	return "Selected"
+
+
+func _selected_name(actor: Actor) -> String:
+	if actor is HeroController:
+		return (actor as HeroController).hero_id
+	if actor is LaneUnit:
+		return (actor as LaneUnit).unit_id
+	if actor is NeutralUnit:
+		return (actor as NeutralUnit).unit_id
+	if actor is SummonedCompanion:
+		return (actor as SummonedCompanion).companion_kind
+	if actor is TowerStructure:
+		var tower := actor as TowerStructure
+		return "%s T%d" % [tower.team, tower.tower_tier]
+	if actor is BaseStructure:
+		return actor.team
+
+	return actor.name

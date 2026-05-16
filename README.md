@@ -5,6 +5,7 @@ Godot 4.6 project skeleton based on `Nazev.docx`. This version uses GDScript so 
 The project is structured for a 2D pixel-art single-player RTS/RPG/auto-battler:
 
 - three combat lanes between player and enemy bases;
+- functional tier 1-3 lane towers that protect each side and can be destroyed;
 - selectable hero with four abilities;
 - allied and enemy lane waves;
 - neutral jungle camps;
@@ -13,7 +14,8 @@ The project is structured for a 2D pixel-art single-player RTS/RPG/auto-battler:
 
 Prototype controls:
 
-- `WASD` or arrow keys: move hero;
+- left mouse button: select a unit and show its info in the bottom HUD;
+- right mouse button with the player hero selected: move to the clicked point or attack the clicked enemy;
 - `1-4`: cast hero abilities toward the mouse cursor;
 - `B`: toggle shop.
 

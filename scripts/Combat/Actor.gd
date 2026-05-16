@@ -18,6 +18,7 @@ signal health_changed(current: float, maximum: float)
 @export var draw_radius := 12.0
 
 var health := 0.0
+var is_selected := false
 var _attack_cooldown := 0.0
 var _move_speed_multiplier := 1.0
 var _move_speed_timer := 0.0
@@ -97,6 +98,7 @@ func try_attack(target: Actor) -> bool:
 	if global_position.distance_to(target.global_position) > _stat("attack_range"):
 		return false
 
+	_spawn_attack_effect(target)
 	target.take_damage(_stat("attack_damage") * _attack_damage_multiplier, self)
 	_attack_cooldown = _stat("attack_cooldown")
 	return true
@@ -163,8 +165,41 @@ func get_move_speed() -> float:
 	return _stat("move_speed") * _move_speed_multiplier
 
 
+func set_selected(selected: bool) -> void:
+	if is_selected == selected:
+		return
+
+	is_selected = selected
+	queue_redraw()
+
+
+func _spawn_attack_effect(target: Actor) -> void:
+	var effect_parent: Node = get_tree().current_scene
+	if effect_parent == null:
+		effect_parent = get_parent()
+	if effect_parent == null:
+		return
+
+	var start_position: Vector2 = global_position
+	var end_position: Vector2 = target.global_position
+	var is_ranged_attack := _stat("attack_range") > maxf(draw_radius + target.draw_radius + 44.0, 82.0)
+	var effect: AttackEffect = AttackEffect.new()
+	effect_parent.add_child(effect)
+	effect.configure_attack(start_position, end_position, _get_attack_effect_color(), is_ranged_attack, target.draw_radius + 8.0)
+
+
+func _get_attack_effect_color() -> Color:
+	if is_in_group("tower"):
+		return Color(1.0, 0.72, 0.24)
+	if _stat("attack_range") > 90.0:
+		return Color(0.56, 0.82, 1.0) if team == GameCatalog.TEAM_PLAYER else Color(1.0, 0.42, 0.32)
+
+	return Color(1.0, 0.88, 0.42)
+
+
 func _draw() -> void:
 	var team_color := _get_team_color()
+	_draw_selection_ring()
 	_draw_shadow()
 	_draw_unit_body(team_color)
 	_draw_health_bar()
@@ -189,6 +224,14 @@ func _draw_shadow() -> void:
 		Vector2(draw_radius * 0.55, draw_radius * 1.02),
 		Vector2(-draw_radius * 0.65, draw_radius * 1.02),
 	]), Color(0.02, 0.025, 0.02, 0.42))
+
+
+func _draw_selection_ring() -> void:
+	if not is_selected:
+		return
+
+	draw_arc(Vector2.ZERO, draw_radius + 10.0, 0.0, TAU, 40, Color(1.0, 0.92, 0.42, 0.92), 3.0)
+	draw_arc(Vector2.ZERO, draw_radius + 13.0, 0.0, TAU, 40, Color(0.12, 0.08, 0.03, 0.55), 1.0)
 
 
 func _draw_unit_body(team_color: Color) -> void:

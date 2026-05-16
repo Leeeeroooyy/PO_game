@@ -4,6 +4,8 @@ extends Node
 @export var owner_actor_path: NodePath = NodePath("..")
 @export var abilities: Array = []
 
+const PLAYABLE_RECT := Rect2(Vector2(-1400.0, -1400.0), Vector2(2800.0, 2800.0))
+
 var _owner: Actor
 var _cooldowns: Array[float] = []
 
@@ -47,6 +49,8 @@ func get_cooldown(slot: int) -> float:
 
 
 func _execute_ability(ability: Dictionary, target_position: Vector2) -> void:
+	_spawn_ability_effect(ability, target_position)
+
 	match String(ability.get("id", "")):
 		"piercing_arrow":
 			_damage_enemies_along_line(_owner.global_position, _limited_target(target_position, float(ability.get("range", 0.0))), float(ability.get("radius", 0.0)), float(ability.get("power", 0.0)))
@@ -97,8 +101,65 @@ func _execute_ability(ability: Dictionary, target_position: Vector2) -> void:
 	print("%s cast %s" % [_owner.name, String(ability.get("display_name", "Ability"))])
 
 
+func _spawn_ability_effect(ability: Dictionary, target_position: Vector2) -> void:
+	var effect_parent: Node = get_tree().current_scene
+	if effect_parent == null:
+		effect_parent = _owner.get_parent()
+	if effect_parent == null:
+		return
+
+	var targeting := String(ability.get("targeting", "area"))
+	var effect_target: Vector2 = _ability_effect_target(ability, target_position, targeting)
+	var effect: AbilityEffect = AbilityEffect.new()
+	effect_parent.add_child(effect)
+	effect.configure_ability(
+		_owner.global_position,
+		effect_target,
+		float(ability.get("radius", 0.0)),
+		_ability_effect_color(String(ability.get("id", ""))),
+		targeting,
+		String(ability.get("id", ""))
+	)
+
+
+func _ability_effect_target(ability: Dictionary, target_position: Vector2, targeting: String) -> Vector2:
+	match targeting:
+		"self":
+			return _owner.global_position
+		"direction", "area", "point":
+			return _limited_target(target_position, float(ability.get("range", 0.0)))
+		"single_target":
+			var target: Actor = _find_nearest_enemy_to_point(target_position, float(ability.get("range", 0.0)))
+			if target != null:
+				return target.global_position
+			return _limited_target(target_position, float(ability.get("range", 0.0)))
+		_:
+			return target_position
+
+
+func _ability_effect_color(ability_id: String) -> Color:
+	match ability_id:
+		"piercing_arrow", "mark_prey", "nature_dash", "hail_of_arrows":
+			return Color(0.58, 1.0, 0.42)
+		"healing_melody", "swamp_ritual", "frog_jump", "sticky_tongue":
+			return Color(0.36, 0.88, 1.0)
+		"whirlwind", "blood_rage", "battle_cry", "berserkers_call":
+			return Color(1.0, 0.38, 0.22)
+		"fire_sphere":
+			return Color(1.0, 0.34, 0.18)
+		"ice_sphere", "water_sphere":
+			return Color(0.48, 0.82, 1.0)
+		"void_sphere":
+			return Color(0.72, 0.42, 1.0)
+		"alpha_wolf", "thorns", "summon_treant", "snake_charmer":
+			return Color(0.38, 0.86, 0.32)
+		_:
+			return Color(1.0, 0.88, 0.36)
+
+
 func _dash_toward(target_position: Vector2, max_distance: float) -> void:
-	_owner.global_position = _owner.global_position.move_toward(target_position, max_distance)
+	var dash_target := _limited_target(target_position, max_distance)
+	_owner.global_position = _clamp_to_playable_rect(_owner.global_position.move_toward(dash_target, max_distance))
 
 
 func _heal_allies_in_radius(center: Vector2, radius: float, amount: float) -> void:
@@ -269,7 +330,7 @@ func _spawn_companion(kind: String, position: Vector2, target: Actor, objective:
 	if parent == null:
 		parent = get_tree().current_scene
 	parent.add_child(companion)
-	companion.configure_companion(kind, _owner, position, _companion_stats(kind), target, objective)
+	companion.configure_companion(kind, _owner, _clamp_to_playable_rect(position), _companion_stats(kind), target, _clamp_to_playable_rect(objective))
 
 
 func _companion_stats(kind: String) -> Dictionary:
@@ -283,7 +344,7 @@ func _companion_stats(kind: String) -> Dictionary:
 
 
 func _get_enemy_base_position() -> Vector2:
-	var fallback := Vector2(900.0, -520.0) if _owner.team == GameCatalog.TEAM_PLAYER else Vector2(-900.0, 520.0)
+	var fallback := Vector2(1245.0, -1255.0) if _owner.team == GameCatalog.TEAM_PLAYER else Vector2(-1245.0, 1255.0)
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as BaseStructure
 		if actor != null and _owner.can_damage(actor):
@@ -294,9 +355,16 @@ func _get_enemy_base_position() -> Vector2:
 
 func _limited_target(target_position: Vector2, max_range: float) -> Vector2:
 	if max_range <= 0.0:
-		return target_position
+		return _clamp_to_playable_rect(target_position)
 
-	return _owner.global_position.move_toward(target_position, max_range)
+	return _clamp_to_playable_rect(_owner.global_position.move_toward(target_position, max_range))
+
+
+func _clamp_to_playable_rect(position: Vector2) -> Vector2:
+	return Vector2(
+		clampf(position.x, PLAYABLE_RECT.position.x, PLAYABLE_RECT.end.x),
+		clampf(position.y, PLAYABLE_RECT.position.y, PLAYABLE_RECT.end.y)
+	)
 
 
 func _reset_cooldowns() -> void:

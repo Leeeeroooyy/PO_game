@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Structures/TowerStructure.gd" id="1_tower"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tower"]
+size = Vector2(42, 58)
+
+[node name="TowerStructure" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("1_tower")
+draw_radius = 20.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_tower")
