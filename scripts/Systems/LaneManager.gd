@@ -182,9 +182,7 @@ func _get_player_lane_path(lane: String) -> PackedVector2Array:
 				Vector2(-1280.0, 840.0),
 				Vector2(-1280.0, -1020.0),
 				Vector2(-1020.0, -1280.0),
-				Vector2(1020.0, -1280.0),
-				Vector2(1280.0, -1020.0),
-				Vector2(1280.0, -960.0),
+				Vector2(960.0, -1280.0),
 			])
 		GameCatalog.LANE_BOTTOM:
 			return _mirror_top_lane_to_bottom()

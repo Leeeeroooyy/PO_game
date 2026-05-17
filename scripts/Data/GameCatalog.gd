@@ -10,6 +10,7 @@ const LANE_MIDDLE := "middle"
 const LANE_BOTTOM := "bottom"
 
 const DEFAULT_HERO_ID := "forest_ranger"
+const LANE_UNIT_MOVE_SPEED := 85.0
 
 
 static func stats(max_health: float, move_speed: float, attack_damage: float, attack_range: float, attack_cooldown: float, gold_reward: int = 0, experience_reward: int = 0) -> Dictionary:
@@ -111,7 +112,7 @@ static func create_unit_definitions() -> Dictionary:
 			"is_siege_unit": false,
 			"cost": 25,
 			"upgrade_cost": 60,
-			"stats": stats(90.0, 85.0, 10.0, 32.0, 1.15, 8, 6),
+			"stats": stats(90.0, LANE_UNIT_MOVE_SPEED, 10.0, 32.0, 1.15, 8, 6),
 		},
 		"line_mage": {
 			"id": "line_mage",
@@ -120,7 +121,7 @@ static func create_unit_definitions() -> Dictionary:
 			"is_siege_unit": false,
 			"cost": 40,
 			"upgrade_cost": 85,
-			"stats": stats(62.0, 78.0, 14.0, 120.0, 1.35, 10, 7),
+			"stats": stats(62.0, LANE_UNIT_MOVE_SPEED, 14.0, 120.0, 1.35, 10, 7),
 		},
 		"line_siege": {
 			"id": "line_siege",

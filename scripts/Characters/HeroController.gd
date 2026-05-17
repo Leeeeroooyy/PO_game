@@ -1,6 +1,8 @@
 class_name HeroController
 extends Actor
 
+signal ability_build_changed(points: int, levels: Array)
+
 @export var ability_caster_path: NodePath = NodePath("AbilityCaster")
 @export var order_stop_distance := 8.0
 
@@ -14,7 +16,7 @@ var _attack_target: Actor
 
 func _ready() -> void:
 	super._ready()
-	_ability_caster = get_node_or_null(ability_caster_path) as AbilityCaster
+	_bind_ability_caster()
 
 
 func _physics_process(delta: float) -> void:
@@ -41,7 +43,6 @@ func _physics_process(delta: float) -> void:
 			_move_toward(_move_target)
 	else:
 		velocity = Vector2.ZERO
-		try_attack(find_nearest_enemy(_stat("attack_range")))
 
 	move_and_slide()
 
@@ -70,7 +71,7 @@ func configure_hero(definition: Dictionary) -> void:
 	_hero_body_color = _color_for_hero(hero_id)
 	configure(GameCatalog.TEAM_PLAYER, GameCatalog.LANE_MIDDLE, definition.get("stats", {}))
 
-	_ability_caster = get_node_or_null(ability_caster_path) as AbilityCaster
+	_bind_ability_caster()
 	if _ability_caster != null:
 		_ability_caster.set_abilities(definition.get("abilities", []))
 
@@ -95,11 +96,60 @@ func clear_orders() -> void:
 	velocity = Vector2.ZERO
 
 
+func get_attack_target() -> Actor:
+	return _attack_target if _attack_target != null and is_instance_valid(_attack_target) and can_damage(_attack_target) else null
+
+
 func get_abilities() -> Array:
 	if _ability_caster == null:
 		return []
 
 	return _ability_caster.abilities
+
+
+func get_ability_cooldown(slot: int) -> float:
+	if _ability_caster == null:
+		return 0.0
+
+	return _ability_caster.get_cooldown(slot)
+
+
+func get_ability_level(slot: int) -> int:
+	if _ability_caster == null:
+		return 0
+
+	return _ability_caster.get_ability_level(slot)
+
+
+func get_ability_levels() -> Array:
+	if _ability_caster == null:
+		return []
+
+	return _ability_caster.get_ability_levels()
+
+
+func get_unspent_ability_points() -> int:
+	if _ability_caster == null:
+		return 0
+
+	return _ability_caster.get_unspent_ability_points()
+
+
+func grant_ability_points(amount: int) -> void:
+	if _ability_caster != null:
+		_ability_caster.grant_ability_points(amount)
+
+
+func try_upgrade_ability(slot: int) -> bool:
+	if _ability_caster == null:
+		return false
+
+	return _ability_caster.try_upgrade_ability(slot)
+
+
+func apply_ability_build(points: int, levels: Array) -> void:
+	if _ability_caster != null:
+		_ability_caster.apply_ability_build(points, levels)
 
 
 func get_hero_color() -> Color:
@@ -118,6 +168,16 @@ func _move_toward(point: Vector2) -> void:
 
 func _get_team_color() -> Color:
 	return _hero_body_color
+
+
+func _bind_ability_caster() -> void:
+	_ability_caster = get_node_or_null(ability_caster_path) as AbilityCaster
+	if _ability_caster != null and not _ability_caster.ability_build_changed.is_connected(_on_ability_build_changed):
+		_ability_caster.ability_build_changed.connect(_on_ability_build_changed)
+
+
+func _on_ability_build_changed(points: int, levels: Array) -> void:
+	ability_build_changed.emit(points, levels)
 
 
 func _color_for_hero(id: String) -> Color:

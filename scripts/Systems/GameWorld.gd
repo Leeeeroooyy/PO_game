@@ -14,6 +14,7 @@ signal game_ended(victory: bool)
 @export var shop_scene: PackedScene
 @export var player_respawn_time := 8.0
 @export var enemy_hero_respawn_time := 12.0
+@export var player_experience_radius := 420.0
 
 const PLAYABLE_RECT := Rect2(Vector2(-1400.0, -1400.0), Vector2(2800.0, 2800.0))
 const CAMERA_RECT := Rect2(Vector2(-1580.0, -1500.0), Vector2(3160.0, 3260.0))
@@ -35,6 +36,9 @@ var _enemy_hero: EnemyHeroAi
 var _hud: InGameHudController
 var _shop_panel: ShopController
 var _selected_actor: Actor
+var _player_ability_points := 0
+var _player_ability_levels: Array[int] = []
+var _last_player_level := 1
 var _match_ended := false
 var _player_respawn_remaining := 0.0
 var _enemy_respawn_remaining := 0.0
@@ -42,11 +46,14 @@ var _order_marker_position := Vector2.ZERO
 var _order_marker_timer := 0.0
 var _order_marker_duration := 0.45
 var _order_marker_is_attack := false
+var _attack_target_marker_visible := false
 
 
 func _process(delta: float) -> void:
 	_tick_respawns(delta)
 	_tick_order_marker(delta)
+	_tick_attack_target_marker()
+	_update_wave_timer()
 
 	if _camera == null or _player_hero == null or not is_instance_valid(_player_hero):
 		return
@@ -72,11 +79,17 @@ func _ready() -> void:
 
 	_economy.reset_economy()
 	_experience.reset_progress()
+	_last_player_level = _experience.level
+	_player_ability_points = 1
+	_player_ability_levels.clear()
+	if not _experience.experience_changed.is_connected(_on_player_experience_changed):
+		_experience.experience_changed.connect(_on_player_experience_changed)
 	_shop.bind(_economy)
 	_shop.unit_upgraded.connect(_on_unit_upgraded)
 
 	_wave_spawner.configure(_actors, lane_unit_scene, _lane_manager)
 	_wave_spawner.unit_spawned.connect(_register_actor)
+	_wave_spawner.wave_started.connect(_on_wave_started)
 	_neutral_spawner.configure(_actors, neutral_unit_scene)
 	_neutral_spawner.unit_spawned.connect(_register_actor)
 
@@ -227,6 +240,9 @@ func _spawn_player_hero() -> void:
 	_player_hero = player_hero_scene.instantiate() as HeroController
 	_actors.add_child(_player_hero)
 	_player_hero.configure_hero(definition)
+	_player_hero.apply_ability_build(_player_ability_points, _player_ability_levels)
+	if not _player_hero.ability_build_changed.is_connected(_on_player_ability_build_changed):
+		_player_hero.ability_build_changed.connect(_on_player_ability_build_changed)
 	_player_hero.global_position = _lane_manager.get_hero_spawn(GameCatalog.TEAM_PLAYER)
 	_register_actor(_player_hero)
 
@@ -252,6 +268,7 @@ func _create_ui() -> void:
 	ui_layer.add_child(_shop_panel)
 	_shop_panel.bind(_shop, _economy)
 	_shop_panel.visible = false
+	_update_wave_timer()
 
 
 func _register_actor(actor: Actor) -> void:
@@ -265,8 +282,10 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 	if _match_ended or victim == null:
 		return
 
-	if killer != null and killer.team == GameCatalog.TEAM_PLAYER and victim.team != GameCatalog.TEAM_PLAYER:
+	if _is_player_hero_kill(killer, victim):
 		_economy.add_gold(int(victim.stats.get("gold_reward", 0)))
+
+	if _is_player_hero_in_experience_range(victim):
 		_experience.add_experience(int(victim.stats.get("experience_reward", 0)))
 
 	if victim == _selected_actor:
@@ -286,6 +305,55 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 
 func _on_unit_upgraded(unit_id: String, level: int) -> void:
 	_wave_spawner.set_unit_upgrade_level(unit_id, level)
+
+
+func _on_player_experience_changed(level: int, _experience_value: int, _required_experience: int) -> void:
+	if level > _last_player_level:
+		_grant_player_ability_points(level - _last_player_level)
+
+	_last_player_level = level
+
+
+func _grant_player_ability_points(amount: int) -> void:
+	if amount <= 0:
+		return
+
+	if _player_hero != null and is_instance_valid(_player_hero):
+		_player_hero.grant_ability_points(amount)
+	else:
+		_player_ability_points += amount
+
+
+func _on_player_ability_build_changed(points: int, levels: Array) -> void:
+	_player_ability_points = points
+	_player_ability_levels.clear()
+	for level in levels:
+		_player_ability_levels.append(int(level))
+
+
+func _on_wave_started(_wave_number: int) -> void:
+	_neutral_spawner.respawn_empty_camps()
+
+
+func _is_player_hero_kill(killer: Actor, victim: Actor) -> bool:
+	return (
+		killer != null
+		and victim != null
+		and killer == _player_hero
+		and is_instance_valid(killer)
+		and victim.team != GameCatalog.TEAM_PLAYER
+	)
+
+
+func _is_player_hero_in_experience_range(victim: Actor) -> bool:
+	return (
+		victim != null
+		and victim.team != GameCatalog.TEAM_PLAYER
+		and _player_hero != null
+		and is_instance_valid(_player_hero)
+		and _player_hero.is_alive()
+		and _player_hero.global_position.distance_to(victim.global_position) <= player_experience_radius
+	)
 
 
 func _toggle_shop() -> void:
@@ -340,17 +408,22 @@ func _select_actor(actor: Actor) -> void:
 
 
 func _handle_right_click_order(target_position: Vector2) -> void:
-	if _selected_actor != _player_hero or _player_hero == null or not is_instance_valid(_player_hero) or not _player_hero.is_alive():
+	if _player_hero == null or not is_instance_valid(_player_hero) or not _player_hero.is_alive():
 		return
+
+	if _selected_actor != _player_hero:
+		_select_actor(_player_hero)
 
 	var clicked_actor := _find_actor_at(target_position)
 	if clicked_actor != null and _player_hero.can_damage(clicked_actor):
 		_player_hero.order_attack(clicked_actor)
 		_show_order_marker(clicked_actor.global_position, true)
+		queue_redraw()
 	else:
 		var move_position := _clamp_to_playable_rect(target_position)
 		_player_hero.order_move(move_position)
 		_show_order_marker(move_position, false)
+		queue_redraw()
 
 
 func _clamp_to_playable_rect(position: Vector2) -> Vector2:
@@ -404,7 +477,24 @@ func _tick_order_marker(delta: float) -> void:
 	queue_redraw()
 
 
+func _tick_attack_target_marker() -> void:
+	var marker_visible := _get_player_attack_target() != null
+	if marker_visible or marker_visible != _attack_target_marker_visible:
+		queue_redraw()
+
+	_attack_target_marker_visible = marker_visible
+
+
+func _update_wave_timer() -> void:
+	if _hud == null or _wave_spawner == null:
+		return
+
+	_hud.set_wave_timer(_wave_spawner.get_time_until_next_wave(), _wave_spawner.get_next_wave_number())
+
+
 func _draw() -> void:
+	_draw_attack_target_marker()
+
 	if _order_marker_timer <= 0.0:
 		return
 
@@ -422,6 +512,25 @@ func _draw() -> void:
 		var inner: Vector2 = _order_marker_position + direction * (radius + 3.0)
 		var side: Vector2 = direction.orthogonal() * 5.0
 		draw_colored_polygon(PackedVector2Array([outer, inner + side, inner - side]), color)
+
+
+func _draw_attack_target_marker() -> void:
+	var target := _get_player_attack_target()
+	if target == null:
+		return
+
+	var radius := maxf(target.draw_radius + 12.0, 24.0)
+	var position := target.global_position
+	draw_arc(position, radius + 4.0, 0.0, TAU, 48, Color(0.12, 0.0, 0.0, 0.78), 5.0)
+	draw_arc(position, radius, 0.0, TAU, 48, Color(1.0, 0.12, 0.08, 0.95), 3.0)
+	draw_arc(position, radius - 5.0, 0.0, TAU, 48, Color(1.0, 0.42, 0.34, 0.55), 1.5)
+
+
+func _get_player_attack_target() -> Actor:
+	if _player_hero == null or not is_instance_valid(_player_hero):
+		return null
+
+	return _player_hero.get_attack_target()
 
 
 func _get_or_create_node2d(child_name: String) -> Node2D:

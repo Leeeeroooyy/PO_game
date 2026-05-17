@@ -1,13 +1,18 @@
 class_name AbilityCaster
 extends Node
 
+signal ability_build_changed(points: int, levels: Array)
+
 @export var owner_actor_path: NodePath = NodePath("..")
 @export var abilities: Array = []
 
 const PLAYABLE_RECT := Rect2(Vector2(-1400.0, -1400.0), Vector2(2800.0, 2800.0))
+const MAX_ABILITY_LEVEL := 4
 
 var _owner: Actor
 var _cooldowns: Array[float] = []
+var _ability_levels: Array[int] = []
+var _unspent_ability_points := 0
 
 
 func _ready() -> void:
@@ -24,6 +29,7 @@ func _process(delta: float) -> void:
 func set_abilities(new_abilities: Array) -> void:
 	abilities = new_abilities
 	_reset_cooldowns()
+	_reset_ability_levels()
 
 
 func cast(slot: int, target_position: Vector2) -> bool:
@@ -31,8 +37,11 @@ func cast(slot: int, target_position: Vector2) -> bool:
 		return false
 	if not _owner.is_alive():
 		return false
+	if get_ability_level(slot) <= 0:
+		return false
 
-	var ability: Dictionary = abilities[slot]
+	var ability_definition: Dictionary = abilities[slot]
+	var ability := _ability_for_level(ability_definition, get_ability_level(slot))
 	if ability.is_empty() or _cooldowns[slot] > 0.0:
 		return false
 
@@ -46,6 +55,52 @@ func get_cooldown(slot: int) -> float:
 		return 0.0
 
 	return _cooldowns[slot]
+
+
+func get_ability_level(slot: int) -> int:
+	if slot < 0 or slot >= _ability_levels.size():
+		return 0
+
+	return _ability_levels[slot]
+
+
+func get_ability_levels() -> Array:
+	return _ability_levels.duplicate()
+
+
+func get_unspent_ability_points() -> int:
+	return _unspent_ability_points
+
+
+func grant_ability_points(amount: int) -> void:
+	if amount <= 0:
+		return
+
+	_unspent_ability_points += amount
+	_emit_ability_build_changed()
+
+
+func try_upgrade_ability(slot: int) -> bool:
+	if _unspent_ability_points <= 0 or slot < 0 or slot >= _ability_levels.size():
+		return false
+	if _ability_levels[slot] >= MAX_ABILITY_LEVEL:
+		return false
+
+	_ability_levels[slot] += 1
+	_unspent_ability_points -= 1
+	_emit_ability_build_changed()
+	return true
+
+
+func apply_ability_build(points: int, levels: Array) -> void:
+	_unspent_ability_points = maxi(0, points)
+	_ability_levels.clear()
+	_ability_levels.resize(abilities.size())
+	for i in range(_ability_levels.size()):
+		var stored_level := int(levels[i]) if i < levels.size() else 0
+		_ability_levels[i] = clampi(stored_level, 0, MAX_ABILITY_LEVEL)
+
+	_emit_ability_build_changed()
 
 
 func _execute_ability(ability: Dictionary, target_position: Vector2) -> void:
@@ -372,6 +427,29 @@ func _reset_cooldowns() -> void:
 	_cooldowns.resize(abilities.size())
 	for i in range(_cooldowns.size()):
 		_cooldowns[i] = 0.0
+
+
+func _reset_ability_levels() -> void:
+	_ability_levels.clear()
+	_ability_levels.resize(abilities.size())
+	for i in range(_ability_levels.size()):
+		_ability_levels[i] = 0
+	_unspent_ability_points = 0
+	_emit_ability_build_changed()
+
+
+func _ability_for_level(ability: Dictionary, level: int) -> Dictionary:
+	if ability.is_empty():
+		return {}
+
+	var scaled := ability.duplicate(true)
+	var power := float(scaled.get("power", 0.0))
+	scaled["power"] = power * (1.0 + float(maxi(level, 1) - 1) * 0.25)
+	return scaled
+
+
+func _emit_ability_build_changed() -> void:
+	ability_build_changed.emit(_unspent_ability_points, get_ability_levels())
 
 
 func _distance_point_to_segment(point: Vector2, start: Vector2, end: Vector2) -> float:

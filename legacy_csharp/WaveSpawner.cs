@@ -6,7 +6,7 @@ public partial class WaveSpawner : Node
 {
     [Signal] public delegate void WaveStartedEventHandler(int waveNumber);
 
-    [Export] public float SpawnInterval { get; set; } = 8.0f;
+    [Export] public float SpawnInterval { get; set; } = 30.0f;
 
     public event Action<Actor> UnitSpawned = delegate { };
 
@@ -43,7 +43,7 @@ public partial class WaveSpawner : Node
     public void StartSpawning()
     {
         _running = true;
-        _timer = 1.0f;
+        _timer = SpawnInterval;
     }
 
     public void StopSpawning()
