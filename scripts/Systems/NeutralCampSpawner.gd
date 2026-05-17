@@ -7,6 +7,12 @@ var _actor_parent: Node2D
 var _neutral_unit_scene: PackedScene
 var _camps: Array[Dictionary] = []
 
+const CAMP_UNIT_OFFSETS := [
+	Vector2(-30.0, -18.0),
+	Vector2(30.0, -18.0),
+	Vector2(0.0, 30.0),
+]
+
 
 func configure(actor_parent: Node2D, neutral_unit_scene: PackedScene) -> void:
 	_actor_parent = actor_parent
@@ -61,15 +67,10 @@ func _spawn_camp(camp_index: int) -> void:
 	var camp := _camps[camp_index]
 	var center: Vector2 = camp.get("center", Vector2.ZERO)
 	var unit_ids: Array = camp.get("unit_ids", [])
-	var offsets := [
-		Vector2(-18.0, -10.0),
-		Vector2(20.0, -6.0),
-		Vector2(0.0, 22.0),
-	]
 	var units: Array[NeutralUnit] = []
 
 	for i in range(unit_ids.size()):
-		var unit := _spawn_neutral(String(unit_ids[i]), center + offsets[i % offsets.size()])
+		var unit := _spawn_neutral(String(unit_ids[i]), center + CAMP_UNIT_OFFSETS[i % CAMP_UNIT_OFFSETS.size()])
 		if unit != null:
 			units.append(unit)
 

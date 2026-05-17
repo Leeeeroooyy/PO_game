@@ -95,10 +95,24 @@ func refresh() -> void:
 		var unit_id := String(definition.get("id", ""))
 		var level := _shop.get_upgrade_level(unit_id) if _shop != null else 0
 		var cost := _shop.get_next_upgrade_cost(definition) if _shop != null else int(definition.get("upgrade_cost", 0))
+		var next_level := level + 1
+		var next_health_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_HEALTH_BONUS_PER_LEVEL * 100.0)
+		var next_damage_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_DAMAGE_BONUS_PER_LEVEL * 100.0)
+		var next_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_MOVE_SPEED_BONUS_PER_LEVEL * 100.0)
+		var next_attack_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_ATTACK_SPEED_BONUS_PER_LEVEL * 100.0)
 
 		var button := Button.new()
-		button.text = "%s  Lv %d  %dg" % [definition.get("display_name", ""), level, cost]
-		button.custom_minimum_size = Vector2(0.0, 48.0)
+		button.text = "%s  Lv %d -> %d  %dg\n+%d%% HP  +%d%% DMG\n+%d%% MS  +%d%% AS" % [
+			definition.get("display_name", ""),
+			level,
+			next_level,
+			cost,
+			next_health_bonus,
+			next_damage_bonus,
+			next_speed_bonus,
+			next_attack_speed_bonus,
+		]
+		button.custom_minimum_size = Vector2(0.0, 78.0)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.disabled = _economy == null or _economy.gold < cost
 		button.pressed.connect(_buy_upgrade.bind(unit_id))

@@ -3,6 +3,8 @@ extends Node2D
 
 signal game_ended(victory: bool)
 
+const FloatingGoldPopupScript := preload("res://scripts/UI/FloatingGoldPopup.gd")
+
 @export var selected_hero_id := GameCatalog.DEFAULT_HERO_ID
 @export var player_hero_scene: PackedScene
 @export var enemy_hero_scene: PackedScene
@@ -283,7 +285,9 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 		return
 
 	if _is_player_hero_kill(killer, victim):
-		_economy.add_gold(int(victim.stats.get("gold_reward", 0)))
+		var gold_reward := int(victim.stats.get("gold_reward", 0))
+		_economy.add_gold(gold_reward)
+		_show_gold_popup(victim.global_position, gold_reward)
 
 	if _is_player_hero_in_experience_range(victim):
 		_experience.add_experience(int(victim.stats.get("experience_reward", 0)))
@@ -305,6 +309,7 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 
 func _on_unit_upgraded(unit_id: String, level: int) -> void:
 	_wave_spawner.set_unit_upgrade_level(unit_id, level)
+	_apply_upgrade_to_live_lane_units(unit_id, level)
 
 
 func _on_player_experience_changed(level: int, _experience_value: int, _required_experience: int) -> void:
@@ -312,6 +317,24 @@ func _on_player_experience_changed(level: int, _experience_value: int, _required
 		_grant_player_ability_points(level - _last_player_level)
 
 	_last_player_level = level
+
+
+func _apply_upgrade_to_live_lane_units(unit_id: String, level: int) -> void:
+	if _actors == null or _wave_spawner == null:
+		return
+
+	var upgraded_stats := _wave_spawner.create_upgraded_stats(unit_id, GameCatalog.TEAM_PLAYER)
+	if upgraded_stats.is_empty():
+		return
+
+	for child in _actors.get_children():
+		var lane_unit := child as LaneUnit
+		if lane_unit == null or not is_instance_valid(lane_unit) or not lane_unit.is_alive():
+			continue
+		if lane_unit.team != GameCatalog.TEAM_PLAYER or lane_unit.unit_id != unit_id:
+			continue
+
+		lane_unit.apply_upgrade_level(level, upgraded_stats)
 
 
 func _grant_player_ability_points(amount: int) -> void:
@@ -359,6 +382,20 @@ func _is_player_hero_in_experience_range(victim: Actor) -> bool:
 func _toggle_shop() -> void:
 	if _shop_panel != null:
 		_shop_panel.toggle()
+
+
+func _show_gold_popup(world_position: Vector2, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var ui_layer := _get_or_create_ui_layer()
+	var popup := FloatingGoldPopupScript.new() as FloatingGoldPopup
+	ui_layer.add_child(popup)
+	popup.configure(amount, _world_to_ui_position(world_position))
+
+
+func _world_to_ui_position(world_position: Vector2) -> Vector2:
+	return get_viewport().get_canvas_transform() * world_position
 
 
 func _start_player_respawn() -> void:
@@ -459,7 +496,7 @@ func _get_actor_pick_radius(actor: Actor) -> float:
 		var tower := actor as TowerStructure
 		return maxf(tower.size.length() * 0.42, 34.0)
 
-	return maxf(actor.draw_radius + 12.0, 24.0)
+	return actor.get_pick_radius()
 
 
 func _show_order_marker(position: Vector2, is_attack: bool) -> void:
@@ -489,7 +526,11 @@ func _update_wave_timer() -> void:
 	if _hud == null or _wave_spawner == null:
 		return
 
-	_hud.set_wave_timer(_wave_spawner.get_time_until_next_wave(), _wave_spawner.get_next_wave_number())
+	_hud.set_wave_timer(
+		_wave_spawner.get_time_until_next_wave(),
+		_wave_spawner.get_next_wave_number(),
+		_wave_spawner.get_next_wave_has_catapult()
+	)
 
 
 func _draw() -> void:
@@ -519,7 +560,7 @@ func _draw_attack_target_marker() -> void:
 	if target == null:
 		return
 
-	var radius := maxf(target.draw_radius + 12.0, 24.0)
+	var radius := maxf(target.get_hit_radius() + 10.0, 24.0)
 	var position := target.global_position
 	draw_arc(position, radius + 4.0, 0.0, TAU, 48, Color(0.12, 0.0, 0.0, 0.78), 5.0)
 	draw_arc(position, radius, 0.0, TAU, 48, Color(1.0, 0.12, 0.08, 0.95), 3.0)

@@ -1,8 +1,14 @@
 class_name NeutralUnit
 extends Actor
 
+const UnitArtRenderer := preload("res://scripts/Visuals/UnitArt.gd")
+
 @export var leash_radius := 180.0
 @export var unit_id := "neutral_bruiser"
+
+const AGGRO_RANGE := 125.0
+const SOFT_SEPARATION_FORCE := 70.0
+const RETURN_REGEN_PER_SECOND := 18.0
 
 var _home_position := Vector2.ZERO
 var _aggro_target: Actor
@@ -20,14 +26,13 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
-	if _aggro_target == null or not is_instance_valid(_aggro_target) or not _aggro_target.is_alive():
-		_aggro_target = find_nearest_enemy(90.0)
+	var target := _choose_aggro_target()
 
-	if _aggro_target != null and global_position.distance_to(_home_position) <= leash_radius:
-		if not try_attack(_aggro_target):
-			velocity = global_position.direction_to(_aggro_target.global_position) * get_move_speed()
-		else:
+	if target != null:
+		if try_attack(target):
 			velocity = Vector2.ZERO
+		else:
+			velocity = _with_soft_separation(global_position.direction_to(target.global_position) * get_move_speed())
 	else:
 		_return_home()
 
@@ -45,30 +50,122 @@ func configure_neutral(new_unit_id: String, position: Vector2, new_stats: Dictio
 	unit_id = new_unit_id
 	global_position = position
 	_home_position = position
+	_aggro_target = null
+	collision_layer = 0
+	collision_mask = 0
 	configure(GameCatalog.TEAM_NEUTRAL, GameCatalog.LANE_MIDDLE, new_stats)
 	queue_redraw()
 
 
-func _draw() -> void:
-	super._draw()
+func _draw_unit_body(_team_color: Color) -> void:
+	UnitArtRenderer.draw_neutral(self, unit_id, draw_radius)
+
+
+func get_hit_radius() -> float:
+	if unit_id == "neutral_claw":
+		return draw_radius * 1.75
+
+	return draw_radius * 1.55
+
+
+func get_pick_radius() -> float:
+	return draw_radius * 3.0
+
+
+func _get_health_bar_offset() -> float:
+	return draw_radius * 4.0 + 8.0
+
+
+func _get_projectile_kind(is_ranged_attack: bool) -> String:
+	if not is_ranged_attack:
+		return "slash"
+
 	match unit_id:
 		"neutral_spitter":
-			draw_circle(Vector2(draw_radius * 0.55, -draw_radius * 0.55), 3.5, Color(0.55, 0.76, 0.45))
-			draw_circle(Vector2(draw_radius * 1.02, -draw_radius * 0.76), 2.0, Color(0.65, 0.95, 0.50))
+			return "spit"
 		"neutral_thrower":
-			draw_line(Vector2(-draw_radius * 0.9, -draw_radius * 0.7), Vector2(draw_radius * 0.9, -draw_radius * 1.15), Color(0.35, 0.20, 0.10), 3.0)
-			draw_circle(Vector2(draw_radius * 1.05, -draw_radius * 1.2), 3.0, Color(0.26, 0.24, 0.20))
-		"neutral_claw":
-			draw_line(Vector2(-draw_radius * 0.65, -draw_radius * 0.25), Vector2(-draw_radius * 1.25, -draw_radius * 0.85), Color(0.92, 0.86, 0.65), 2.0)
-			draw_line(Vector2(draw_radius * 0.65, -draw_radius * 0.25), Vector2(draw_radius * 1.25, -draw_radius * 0.85), Color(0.92, 0.86, 0.65), 2.0)
+			return "stone"
 		_:
-			draw_circle(Vector2(0.0, -draw_radius * 1.25), 3.5, Color(0.45, 0.30, 0.16))
+			return "bolt"
+
+
+func _choose_aggro_target() -> Actor:
+	if _is_valid_aggro_target(_aggro_target):
+		return _aggro_target
+
+	_aggro_target = _find_aggro_target()
+	return _aggro_target
+
+
+func _find_aggro_target() -> Actor:
+	var best: Actor = null
+	var best_distance := AGGRO_RANGE
+
+	for node in get_tree().get_nodes_in_group("combat_actor"):
+		var actor := node as Actor
+		if actor == null or actor == self or not is_instance_valid(actor) or not actor.is_alive() or not can_damage(actor):
+			continue
+		if actor.team == GameCatalog.TEAM_NEUTRAL:
+			continue
+		if _home_position.distance_to(actor.global_position) > leash_radius:
+			continue
+
+		var edge_distance := maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
+		if edge_distance <= best_distance:
+			best = actor
+			best_distance = edge_distance
+
+	return best
+
+
+func _is_valid_aggro_target(candidate) -> bool:
+	if candidate == null or not is_instance_valid(candidate):
+		return false
+
+	var actor := candidate as Actor
+	if actor == null:
+		return false
+
+	return (
+		actor.is_alive()
+		and can_damage(actor)
+		and actor.team != GameCatalog.TEAM_NEUTRAL
+		and _home_position.distance_to(actor.global_position) <= leash_radius
+	)
+
+
+func _with_soft_separation(base_velocity: Vector2) -> Vector2:
+	var push := Vector2.ZERO
+	for node in get_tree().get_nodes_in_group("combat_actor"):
+		var actor := node as Actor
+		if actor == null or actor == self or not is_instance_valid(actor) or not actor.is_alive() or actor.team != team:
+			continue
+		if not (actor is NeutralUnit):
+			continue
+
+		var delta := global_position - actor.global_position
+		var distance := delta.length()
+		var spacing := get_hit_radius() + actor.get_hit_radius() + 8.0
+		if distance <= 0.01 or distance >= spacing:
+			continue
+
+		push += delta.normalized() * ((spacing - distance) / spacing)
+
+	var adjusted := base_velocity + push * SOFT_SEPARATION_FORCE
+	var max_speed := get_move_speed() * 1.22
+	if adjusted.length() > max_speed:
+		adjusted = adjusted.normalized() * max_speed
+
+	return adjusted
 
 
 func _return_home() -> void:
 	if global_position.distance_to(_home_position) < 6.0:
 		velocity = Vector2.ZERO
 		_aggro_target = null
+		if health < _stat("max_health"):
+			heal(RETURN_REGEN_PER_SECOND * get_physics_process_delta_time())
 		return
 
-	velocity = global_position.direction_to(_home_position) * get_move_speed()
+	_aggro_target = null
+	velocity = _with_soft_separation(global_position.direction_to(_home_position) * get_move_speed())

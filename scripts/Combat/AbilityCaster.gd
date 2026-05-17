@@ -104,6 +104,8 @@ func apply_ability_build(points: int, levels: Array) -> void:
 
 
 func _execute_ability(ability: Dictionary, target_position: Vector2) -> void:
+	var ability_color := _ability_effect_color(String(ability.get("id", "")))
+	_owner.trigger_cast_visual(ability_color, String(ability.get("id", "")))
 	_spawn_ability_effect(ability, target_position)
 
 	match String(ability.get("id", "")):
@@ -220,28 +222,28 @@ func _dash_toward(target_position: Vector2, max_distance: float) -> void:
 func _heal_allies_in_radius(center: Vector2, radius: float, amount: float) -> void:
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
-		if actor != null and actor.team == _owner.team and actor.global_position.distance_to(center) <= radius:
+		if actor != null and actor.team == _owner.team and _is_actor_in_radius(actor, center, radius):
 			actor.heal(amount)
 
 
 func _damage_enemies_in_radius(center: Vector2, radius: float, damage: float) -> void:
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
-		if actor != null and _owner.can_damage(actor) and actor.global_position.distance_to(center) <= radius:
+		if actor != null and _owner.can_damage(actor) and _is_actor_in_radius(actor, center, radius):
 			actor.take_damage(damage, _owner)
 
 
 func _apply_to_enemies_in_radius(center: Vector2, radius: float, callback: Callable) -> void:
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
-		if actor != null and _owner.can_damage(actor) and actor.global_position.distance_to(center) <= radius:
+		if actor != null and _owner.can_damage(actor) and _is_actor_in_radius(actor, center, radius):
 			callback.call(actor)
 
 
 func _apply_to_allies_in_radius(center: Vector2, radius: float, callback: Callable) -> void:
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
-		if actor != null and actor.team == _owner.team and actor.global_position.distance_to(center) <= radius:
+		if actor != null and actor.team == _owner.team and _is_actor_in_radius(actor, center, radius):
 			callback.call(actor)
 
 
@@ -253,7 +255,7 @@ func _damage_enemies_along_line(origin: Vector2, target_position: Vector2, width
 		if actor == null or not _owner.can_damage(actor):
 			continue
 
-		if _distance_point_to_segment(actor.global_position, origin, end) <= maxf(width, 18.0):
+		if _distance_point_to_segment(actor.global_position, origin, end) <= maxf(width, 18.0) + actor.get_hit_radius() * 0.65:
 			actor.take_damage(damage, _owner)
 
 
@@ -266,17 +268,17 @@ func _damage_nearest_enemy_to_point(point: Vector2, search_radius: float, damage
 
 func _find_nearest_enemy_to_point(point: Vector2, search_radius: float) -> Actor:
 	var best: Actor = null
-	var best_distance_squared := search_radius * search_radius
+	var best_edge_distance := search_radius
 
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
 		if actor == null or not _owner.can_damage(actor):
 			continue
 
-		var distance_squared := point.distance_squared_to(actor.global_position)
-		if distance_squared < best_distance_squared:
+		var edge_distance := maxf(0.0, point.distance_to(actor.global_position) - actor.get_hit_radius())
+		if edge_distance <= search_radius and edge_distance < best_edge_distance:
 			best = actor
-			best_distance_squared = distance_squared
+			best_edge_distance = edge_distance
 
 	return best
 
@@ -346,7 +348,7 @@ func _ice_sphere(target_position: Vector2, ability: Dictionary) -> void:
 		if actor == null or not _owner.can_damage(actor):
 			continue
 
-		if _distance_point_to_segment(actor.global_position, _owner.global_position, end) <= maxf(float(ability.get("radius", 0.0)), 42.0):
+		if _distance_point_to_segment(actor.global_position, _owner.global_position, end) <= maxf(float(ability.get("radius", 0.0)), 42.0) + actor.get_hit_radius() * 0.65:
 			actor.take_damage(float(ability.get("power", 0.0)), _owner)
 			actor.apply_move_speed_multiplier(0.0, 1.8)
 
@@ -420,6 +422,10 @@ func _clamp_to_playable_rect(position: Vector2) -> Vector2:
 		clampf(position.x, PLAYABLE_RECT.position.x, PLAYABLE_RECT.end.x),
 		clampf(position.y, PLAYABLE_RECT.position.y, PLAYABLE_RECT.end.y)
 	)
+
+
+func _is_actor_in_radius(actor: Actor, center: Vector2, radius: float) -> bool:
+	return center.distance_to(actor.global_position) <= radius + actor.get_hit_radius()
 
 
 func _reset_cooldowns() -> void:

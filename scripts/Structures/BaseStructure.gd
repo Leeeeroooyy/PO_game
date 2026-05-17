@@ -14,6 +14,14 @@ func _physics_process(delta: float) -> void:
 	velocity = Vector2.ZERO
 
 
+func get_hit_radius() -> float:
+	return maxf(size.x, size.y) * 0.5
+
+
+func get_pick_radius() -> float:
+	return maxf(size.x, size.y) * 0.62
+
+
 func _draw() -> void:
 	var rect := Rect2(-size / 2.0, size)
 	var team_color := _get_team_color()

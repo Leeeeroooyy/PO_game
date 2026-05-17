@@ -1,0 +1,170 @@
+class_name HeroPortraitView
+extends Control
+
+const SPRITE_ATLAS: Texture2D = preload("res://assets/sprites/generated/moba_units_atlas_pixel.png")
+const ATLAS_COLUMNS := 4.0
+const ATLAS_ROWS := 3.0
+
+var hero_id := GameCatalog.DEFAULT_HERO_ID
+var hero_color := Color(0.34, 0.78, 0.36)
+
+
+func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(88.0, 88.0)
+
+
+func set_hero(new_hero_id: String, new_hero_color: Color) -> void:
+	hero_id = new_hero_id
+	hero_color = new_hero_color
+	queue_redraw()
+
+
+func _draw() -> void:
+	var side := minf(size.x, size.y)
+	var origin := (size - Vector2(side, side)) * 0.5
+	var cell := side / 16.0
+	var background := hero_color.darkened(0.56)
+
+	draw_rect(Rect2(origin, Vector2(side, side)), Color(0.02, 0.025, 0.025, 0.96))
+	_px(origin, cell, 1, 1, 14, 14, background)
+	_px(origin, cell, 2, 2, 12, 12, hero_color.darkened(0.28))
+	_px(origin, cell, 1, 1, 14, 2, Color(0.92, 0.76, 0.36, 0.72))
+	_px(origin, cell, 1, 13, 14, 2, Color(0.04, 0.03, 0.02, 0.75))
+
+	if _draw_atlas_portrait(origin, side):
+		draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
+		return
+
+	match hero_id:
+		"bard_frog":
+			_draw_bard_frog(origin, cell)
+		"axe_barbarian":
+			_draw_axe_barbarian(origin, cell)
+		"sorcerer":
+			_draw_sorcerer(origin, cell)
+		"ancient_druid":
+			_draw_ancient_druid(origin, cell)
+		_:
+			_draw_forest_ranger(origin, cell)
+
+	draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
+
+
+func _draw_atlas_portrait(origin: Vector2, side: float) -> bool:
+	if SPRITE_ATLAS == null:
+		return false
+
+	var cell := _hero_atlas_cell()
+	var cell_size := Vector2(float(SPRITE_ATLAS.get_width()) / ATLAS_COLUMNS, float(SPRITE_ATLAS.get_height()) / ATLAS_ROWS)
+	var source := Rect2(Vector2(float(cell.x) * cell_size.x, float(cell.y) * cell_size.y), cell_size)
+	var destination := Rect2(origin + Vector2(side * 0.02, side * 0.02), Vector2(side * 0.96, side * 0.96))
+	draw_texture_rect_region(SPRITE_ATLAS, destination, source)
+	_draw_portrait_accent(origin, side)
+	return true
+
+
+func _hero_atlas_cell() -> Vector2i:
+	match hero_id:
+		"bard_frog":
+			return Vector2i(1, 0)
+		"axe_barbarian":
+			return Vector2i(2, 0)
+		"sorcerer":
+			return Vector2i(3, 0)
+		"ancient_druid":
+			return Vector2i(0, 1)
+		_:
+			return Vector2i(0, 0)
+
+
+func _draw_portrait_accent(origin: Vector2, side: float) -> void:
+	var accent := hero_color.lightened(0.22)
+	draw_rect(Rect2(origin + Vector2(side * 0.10, side * 0.09), Vector2(side * 0.80, side * 0.06)), Color(accent.r, accent.g, accent.b, 0.75))
+	draw_rect(Rect2(origin + Vector2(side * 0.10, side * 0.84), Vector2(side * 0.80, side * 0.07)), Color(0.02, 0.02, 0.015, 0.62))
+
+
+func _draw_forest_ranger(origin: Vector2, cell: float) -> void:
+	var skin := Color(0.76, 0.54, 0.34)
+	var hood := Color(0.14, 0.42, 0.18)
+	var leather := Color(0.30, 0.18, 0.09)
+	_px(origin, cell, 5, 3, 6, 3, hood.lightened(0.10))
+	_px(origin, cell, 4, 5, 8, 5, hood)
+	_px(origin, cell, 6, 6, 4, 4, skin)
+	_px(origin, cell, 5, 10, 6, 3, leather)
+	_px(origin, cell, 3, 7, 2, 5, hood.darkened(0.20))
+	_px(origin, cell, 11, 7, 2, 5, hood.darkened(0.20))
+	_px(origin, cell, 6, 7, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 9, 7, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 12, 4, 1, 8, Color(0.72, 0.56, 0.24))
+	_px(origin, cell, 11, 4, 1, 1, Color(0.95, 0.88, 0.58))
+
+
+func _draw_bard_frog(origin: Vector2, cell: float) -> void:
+	var skin := Color(0.35, 0.78, 0.92)
+	var vest := Color(0.23, 0.15, 0.32)
+	var gold := Color(0.95, 0.78, 0.28)
+	_px(origin, cell, 4, 5, 8, 6, skin.darkened(0.05))
+	_px(origin, cell, 5, 3, 2, 3, skin.lightened(0.12))
+	_px(origin, cell, 9, 3, 2, 3, skin.lightened(0.12))
+	_px(origin, cell, 5, 10, 6, 3, vest)
+	_px(origin, cell, 6, 4, 1, 1, Color(0.02, 0.02, 0.02))
+	_px(origin, cell, 10, 4, 1, 1, Color(0.02, 0.02, 0.02))
+	_px(origin, cell, 6, 8, 4, 1, Color(0.04, 0.02, 0.02))
+	_px(origin, cell, 11, 8, 2, 2, Color(0.45, 0.28, 0.12))
+	_px(origin, cell, 12, 6, 1, 5, gold)
+
+
+func _draw_axe_barbarian(origin: Vector2, cell: float) -> void:
+	var skin := Color(0.70, 0.42, 0.26)
+	var armor := Color(0.78, 0.28, 0.16)
+	var steel := Color(0.78, 0.76, 0.68)
+	_px(origin, cell, 5, 4, 6, 5, skin)
+	_px(origin, cell, 4, 9, 8, 4, armor.darkened(0.15))
+	_px(origin, cell, 3, 6, 2, 5, armor)
+	_px(origin, cell, 11, 6, 2, 5, armor)
+	_px(origin, cell, 5, 3, 6, 1, Color(0.24, 0.12, 0.06))
+	_px(origin, cell, 6, 6, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 9, 6, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 2, 2, 2, 5, steel)
+	_px(origin, cell, 12, 2, 2, 5, steel)
+	_px(origin, cell, 3, 1, 1, 1, Color(0.96, 0.94, 0.80))
+	_px(origin, cell, 12, 1, 1, 1, Color(0.96, 0.94, 0.80))
+
+
+func _draw_sorcerer(origin: Vector2, cell: float) -> void:
+	var robe := Color(0.52, 0.30, 0.92)
+	var skin := Color(0.64, 0.48, 0.68)
+	var glow := Color(0.45, 0.92, 1.0)
+	_px(origin, cell, 5, 4, 6, 5, skin)
+	_px(origin, cell, 4, 3, 8, 2, robe.darkened(0.10))
+	_px(origin, cell, 5, 9, 6, 4, robe)
+	_px(origin, cell, 4, 11, 8, 2, robe.darkened(0.18))
+	_px(origin, cell, 7, 2, 2, 2, robe.lightened(0.22))
+	_px(origin, cell, 6, 6, 1, 1, Color(0.02, 0.02, 0.04))
+	_px(origin, cell, 9, 6, 1, 1, Color(0.02, 0.02, 0.04))
+	_px(origin, cell, 3, 7, 2, 2, Color(1.0, 0.36, 0.18))
+	_px(origin, cell, 11, 7, 2, 2, glow)
+	_px(origin, cell, 8, 10, 1, 1, Color(0.95, 0.95, 1.0))
+
+
+func _draw_ancient_druid(origin: Vector2, cell: float) -> void:
+	var bark := Color(0.35, 0.21, 0.10)
+	var leaf := Color(0.20, 0.58, 0.22)
+	var rune := Color(0.58, 1.0, 0.42)
+	_px(origin, cell, 5, 4, 6, 5, bark.lightened(0.10))
+	_px(origin, cell, 4, 3, 8, 3, leaf.darkened(0.04))
+	_px(origin, cell, 5, 9, 6, 4, bark)
+	_px(origin, cell, 4, 10, 8, 2, leaf.darkened(0.10))
+	_px(origin, cell, 4, 2, 1, 3, bark.lightened(0.18))
+	_px(origin, cell, 11, 2, 1, 3, bark.lightened(0.18))
+	_px(origin, cell, 6, 6, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 9, 6, 1, 1, Color(0.02, 0.02, 0.01))
+	_px(origin, cell, 8, 8, 1, 1, rune)
+	_px(origin, cell, 7, 11, 2, 1, rune.darkened(0.05))
+
+
+func _px(origin: Vector2, cell: float, x: int, y: int, w: int, h: int, color: Color) -> void:
+	draw_rect(Rect2(origin + Vector2(float(x), float(y)) * cell, Vector2(float(w), float(h)) * cell), color)

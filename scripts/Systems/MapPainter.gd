@@ -6,6 +6,12 @@ const CAMERA_RECT := Rect2(Vector2(-1580.0, -1500.0), Vector2(3160.0, 3260.0))
 
 var _lane_manager: LaneManager
 
+const NEUTRAL_CAMP_UNIT_OFFSETS := [
+	Vector2(-30.0, -18.0),
+	Vector2(30.0, -18.0),
+	Vector2(0.0, 30.0),
+]
+
 
 func _ready() -> void:
 	_lane_manager = get_parent().get_node_or_null("LaneManager") as LaneManager
@@ -147,9 +153,42 @@ func _draw_bases() -> void:
 
 func _draw_neutral_camps() -> void:
 	for camp in _neutral_camp_positions():
-		draw_circle(camp, 42.0, Color(0.16, 0.12, 0.08, 0.36))
-		draw_arc(camp, 45.0, 0.0, TAU, 24, Color(0.73, 0.62, 0.37, 0.48), 2.0)
-		draw_line(camp + Vector2(-13.0, 0.0), camp + Vector2(13.0, 0.0), Color(0.55, 0.40, 0.19, 0.5), 2.0)
+		_draw_neutral_camp(camp)
+
+
+func _draw_neutral_camp(center: Vector2) -> void:
+	draw_circle(center + Vector2(5.0, 8.0), 82.0, Color(0.03, 0.025, 0.02, 0.28))
+	draw_circle(center, 78.0, Color(0.19, 0.15, 0.09, 0.58))
+	draw_circle(center, 64.0, Color(0.31, 0.25, 0.15, 0.52))
+	draw_arc(center, 80.0, 0.0, TAU, 40, Color(0.08, 0.06, 0.035, 0.70), 5.0)
+	draw_arc(center, 74.0, 0.0, TAU, 40, Color(0.72, 0.58, 0.31, 0.62), 2.4)
+
+	for i in range(NEUTRAL_CAMP_UNIT_OFFSETS.size()):
+		var slot: Vector2 = center + NEUTRAL_CAMP_UNIT_OFFSETS[i]
+		draw_circle(slot, 22.0, Color(0.08, 0.06, 0.04, 0.46))
+		draw_circle(slot, 17.0, Color(0.38, 0.31, 0.18, 0.58))
+		draw_arc(slot, 22.0, 0.0, TAU, 28, Color(0.74, 0.62, 0.38, 0.46), 1.8)
+
+	draw_circle(center, 13.0, Color(0.08, 0.045, 0.02, 0.78))
+	draw_circle(center, 8.0, Color(0.86, 0.42, 0.12, 0.72))
+	draw_circle(center + Vector2(2.0, -2.0), 4.0, Color(1.0, 0.78, 0.24, 0.82))
+	draw_line(center + Vector2(-18.0, 10.0), center + Vector2(18.0, 10.0), Color(0.45, 0.28, 0.12, 0.74), 4.0)
+	draw_line(center + Vector2(-17.0, -3.0), center + Vector2(15.0, 18.0), Color(0.34, 0.20, 0.10, 0.68), 3.0)
+
+	for i in range(9):
+		var angle := float(i) * TAU / 9.0 + 0.22
+		var radius := 72.0 + float(i % 2) * 7.0
+		_draw_camp_stone(center + Vector2.RIGHT.rotated(angle) * radius, 0.85 + float(i % 3) * 0.12)
+
+
+func _draw_camp_stone(position: Vector2, scale: float) -> void:
+	draw_colored_polygon(PackedVector2Array([
+		position + Vector2(-8.0, 5.0) * scale,
+		position + Vector2(-3.0, -7.0) * scale,
+		position + Vector2(8.0, -4.0) * scale,
+		position + Vector2(10.0, 6.0) * scale,
+		position + Vector2(1.0, 9.0) * scale,
+	]), Color(0.18, 0.17, 0.13, 0.68))
 
 
 func _neutral_camp_positions() -> Array[Vector2]:

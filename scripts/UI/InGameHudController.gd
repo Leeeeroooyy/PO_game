@@ -3,6 +3,8 @@ extends Control
 
 signal shop_requested
 
+const HeroPortraitViewScript := preload("res://scripts/UI/HeroPortraitView.gd")
+
 var _gold_label: Label
 var _experience_label: Label
 var _health_label: Label
@@ -13,8 +15,7 @@ var _skill_points_label: Label
 var _ability_tooltip_panel: PanelContainer
 var _ability_tooltip_label: Label
 var _hovered_ability_slot := -1
-var _portrait_color: ColorRect
-var _portrait_label: Label
+var _portrait_view: HeroPortraitView
 var _ability_slots: Array[Control] = []
 var _ability_name_labels: Array[Label] = []
 var _ability_cooldown_labels: Array[Label] = []
@@ -203,11 +204,12 @@ func set_respawn_time(remaining: float) -> void:
 		_respawn_label.text = ""
 
 
-func set_wave_timer(remaining: float, next_wave_number: int) -> void:
+func set_wave_timer(remaining: float, next_wave_number: int, has_catapult := false) -> void:
 	if _wave_timer_label == null:
 		return
 
-	_wave_timer_label.text = "Wave %d in %ds" % [next_wave_number, ceili(maxf(0.0, remaining))]
+	var wave_name := "Catapult wave" if has_catapult else "Wave"
+	_wave_timer_label.text = "%s %d in %ds" % [wave_name, next_wave_number, ceili(maxf(0.0, remaining))]
 
 
 func _create_portrait_panel() -> Control:
@@ -219,18 +221,9 @@ func _create_portrait_panel() -> Control:
 	var stack := CenterContainer.new()
 	panel.add_child(stack)
 
-	_portrait_color = ColorRect.new()
-	_portrait_color.custom_minimum_size = Vector2(92.0, 92.0)
-	_portrait_color.color = Color(0.26, 0.34, 0.28)
-	stack.add_child(_portrait_color)
-
-	_portrait_label = Label.new()
-	_portrait_label.text = "H"
-	_portrait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_portrait_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_portrait_label.add_theme_font_size_override("font_size", 30)
-	_portrait_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stack.add_child(_portrait_label)
+	_portrait_view = HeroPortraitViewScript.new() as HeroPortraitView
+	_portrait_view.custom_minimum_size = Vector2(92.0, 92.0)
+	stack.add_child(_portrait_view)
 
 	return panel
 
@@ -385,10 +378,8 @@ func _update_portrait() -> void:
 	if _hero == null or not is_instance_valid(_hero):
 		return
 
-	if _portrait_color != null:
-		_portrait_color.color = _hero.get_hero_color().darkened(0.12)
-	if _portrait_label != null:
-		_portrait_label.text = _hero_initial(_hero.hero_id)
+	if _portrait_view != null:
+		_portrait_view.set_hero(_hero.hero_id, _hero.get_hero_color())
 
 
 func _update_ability_cooldowns() -> void:

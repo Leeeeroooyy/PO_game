@@ -3,6 +3,8 @@ extends Actor
 
 signal ability_build_changed(points: int, levels: Array)
 
+const UnitArtRenderer := preload("res://scripts/Visuals/UnitArt.gd")
+
 @export var ability_caster_path: NodePath = NodePath("AbilityCaster")
 @export var order_stop_distance := 8.0
 
@@ -30,7 +32,7 @@ func _physics_process(delta: float) -> void:
 		_attack_target = null
 
 	if _attack_target != null:
-		if global_position.distance_to(_attack_target.global_position) > _stat("attack_range"):
+		if global_position.distance_to(_attack_target.global_position) > _stat("attack_range") + _attack_target.get_hit_radius():
 			_move_toward(_attack_target.global_position)
 		else:
 			velocity = Vector2.ZERO
@@ -159,7 +161,39 @@ func get_hero_color() -> Color:
 func _draw() -> void:
 	draw_arc(Vector2.ZERO, draw_radius + 8.0, 0.0, TAU, 36, _hero_body_color.lightened(0.35), 2.5)
 	super._draw()
-	draw_circle(Vector2(0.0, -draw_radius * 1.42), 3.5, _hero_body_color.lightened(0.55))
+
+
+func _draw_unit_body(team_color: Color) -> void:
+	UnitArtRenderer.draw_hero(self, hero_id, team_color, draw_radius)
+
+
+func get_hit_radius() -> float:
+	return draw_radius * 1.55
+
+
+func get_pick_radius() -> float:
+	return draw_radius * 3.25
+
+
+func _get_health_bar_offset() -> float:
+	return draw_radius * 4.4 + 8.0
+
+
+func _get_projectile_kind(is_ranged_attack: bool) -> String:
+	if not is_ranged_attack:
+		return "slash"
+
+	match hero_id:
+		"forest_ranger":
+			return "arrow"
+		"bard_frog":
+			return "note"
+		"sorcerer":
+			return "orb"
+		"ancient_druid":
+			return "thorn"
+		_:
+			return "bolt"
 
 
 func _move_toward(point: Vector2) -> void:

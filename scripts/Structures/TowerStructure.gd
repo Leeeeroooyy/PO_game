@@ -25,6 +25,14 @@ func _physics_process(delta: float) -> void:
 		try_attack(target)
 
 
+func get_hit_radius() -> float:
+	return maxf(size.x, size.y) * 0.48
+
+
+func get_pick_radius() -> float:
+	return maxf(size.x, size.y) * 0.62
+
+
 func _draw() -> void:
 	var rect := Rect2(-size / 2.0, size)
 	var team_color := _get_team_color()
@@ -71,7 +79,7 @@ func _find_tower_target() -> Actor:
 
 func _find_nearest_tower_target(attack_range: float, creeps_only: bool) -> Actor:
 	var best: Actor = null
-	var best_distance_squared := attack_range * attack_range
+	var best_edge_distance := attack_range
 
 	for node in get_tree().get_nodes_in_group("combat_actor"):
 		var actor := node as Actor
@@ -82,9 +90,9 @@ func _find_nearest_tower_target(attack_range: float, creeps_only: bool) -> Actor
 		if not creeps_only and not (actor is HeroController) and not (actor is EnemyHeroAi):
 			continue
 
-		var distance_squared := global_position.distance_squared_to(actor.global_position)
-		if distance_squared < best_distance_squared:
+		var edge_distance := maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
+		if edge_distance <= attack_range and edge_distance < best_edge_distance:
 			best = actor
-			best_distance_squared = distance_squared
+			best_edge_distance = edge_distance
 
 	return best

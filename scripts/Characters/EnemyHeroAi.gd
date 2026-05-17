@@ -1,6 +1,8 @@
 class_name EnemyHeroAi
 extends Actor
 
+const UnitArtRenderer := preload("res://scripts/Visuals/UnitArt.gd")
+
 @export var objective_position := Vector2.ZERO
 @export var aggro_range := 260.0
 
@@ -30,3 +32,19 @@ func _move_toward(point: Vector2) -> void:
 		return
 
 	velocity = global_position.direction_to(point) * get_move_speed()
+
+
+func _draw_unit_body(team_color: Color) -> void:
+	UnitArtRenderer.draw_enemy_hero(self, team_color, draw_radius)
+
+
+func get_hit_radius() -> float:
+	return draw_radius * 1.65
+
+
+func get_pick_radius() -> float:
+	return draw_radius * 3.4
+
+
+func _get_health_bar_offset() -> float:
+	return draw_radius * 4.4 + 8.0
