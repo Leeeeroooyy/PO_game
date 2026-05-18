@@ -11,6 +11,9 @@ const UnitArtRenderer := preload("res://scripts/Visuals/UnitArt.gd")
 var hero_id := GameCatalog.DEFAULT_HERO_ID
 var _ability_caster: AbilityCaster
 var _hero_body_color := Color(0.25, 0.78, 0.38)
+var _hero_definition := {}
+var _hero_display_name := "Hero"
+var _hero_level := 1
 var _has_move_order := false
 var _move_target := Vector2.ZERO
 var _attack_target: Actor
@@ -65,13 +68,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			_ability_caster.cast(3, mouse_position)
 
 
-func configure_hero(definition: Dictionary) -> void:
+func configure_hero(definition: Dictionary, hero_level := 1) -> void:
 	if definition.is_empty():
 		return
 
+	_hero_definition = definition.duplicate(true)
+	_hero_level = maxi(1, hero_level)
 	hero_id = String(definition.get("id", GameCatalog.DEFAULT_HERO_ID))
+	_hero_display_name = String(definition.get("display_name", _format_hero_id(hero_id)))
 	_hero_body_color = _color_for_hero(hero_id)
-	configure(GameCatalog.TEAM_PLAYER, GameCatalog.LANE_MIDDLE, definition.get("stats", {}))
+	configure(GameCatalog.TEAM_PLAYER, GameCatalog.LANE_MIDDLE, GameCatalog.create_scaled_hero_stats(_hero_definition, _hero_level))
 
 	_bind_ability_caster()
 	if _ability_caster != null:
@@ -154,6 +160,35 @@ func apply_ability_build(points: int, levels: Array) -> void:
 		_ability_caster.apply_ability_build(points, levels)
 
 
+func apply_hero_level(hero_level: int) -> void:
+	if _hero_definition.is_empty():
+		return
+
+	var new_level := maxi(1, hero_level)
+	if new_level == _hero_level:
+		return
+
+	var old_max_health := maxf(_stat("max_health"), 1.0)
+	var old_health := health
+	_hero_level = new_level
+	stats = GameCatalog.create_scaled_hero_stats(_hero_definition, _hero_level)
+
+	var new_max_health := maxf(_stat("max_health"), 1.0)
+	health = minf(new_max_health, old_health + maxf(0.0, new_max_health - old_max_health))
+	_attack_cooldown = minf(_attack_cooldown, _stat("attack_cooldown"))
+	_sync_hitbox()
+	health_changed.emit(health, new_max_health)
+	queue_redraw()
+
+
+func get_hero_level() -> int:
+	return _hero_level
+
+
+func get_display_name() -> String:
+	return _hero_display_name
+
+
 func get_hero_color() -> Color:
 	return _hero_body_color
 
@@ -226,3 +261,13 @@ func _color_for_hero(id: String) -> Color:
 			return Color(0.28, 0.66, 0.26)
 		_:
 			return Color(0.34, 0.78, 0.36)
+
+
+func _format_hero_id(id: String) -> String:
+	var words := id.split("_")
+	var parts := []
+	for word in words:
+		if not word.is_empty():
+			parts.append(word.capitalize())
+
+	return " ".join(parts) if not parts.is_empty() else "Hero"

@@ -21,6 +21,9 @@ const HERO_RETALIATION_DURATION := 2.8
 const HERO_RETALIATION_CHASE_PADDING := 120.0
 const SOFT_SEPARATION_FORCE := 88.0
 const IDLE_SEPARATION_SPEED_FACTOR := 0.36
+const LANE_CORRIDOR_PADDING := 18.0
+const LANE_RETURN_FORCE := 150.0
+const LANE_HARD_CLAMP_PADDING := 20.0
 const STUCK_RECOVERY_TIME := 0.65
 const TARGET_REFRESH_INTERVAL := 0.18
 const SEPARATION_REFRESH_INTERVAL := 0.10
@@ -49,14 +52,16 @@ func _physics_process(delta: float) -> void:
 	var previous_position := global_position
 	var enemy := _choose_combat_target(delta)
 	if enemy != null:
-		if try_attack(enemy):
-			velocity = _with_soft_separation(Vector2.ZERO, delta)
+		if _is_target_in_attack_range(enemy):
+			velocity = Vector2.ZERO
+			try_attack(enemy)
 		else:
 			_move_toward_actor(enemy, delta)
 	else:
 		_move_along_lane(delta)
 
 	move_and_slide()
+	_clamp_to_lane_corridor()
 	_tick_stuck_recovery(delta, previous_position)
 
 
@@ -353,6 +358,13 @@ func _edge_distance_to(candidate) -> float:
 	return maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
 
 
+func _is_target_in_attack_range(actor: Actor) -> bool:
+	if actor == null or not is_instance_valid(actor):
+		return false
+
+	return global_position.distance_to(actor.global_position) <= _stat("attack_range") + actor.get_hit_radius()
+
+
 func _move_toward_actor(actor: Actor, delta: float) -> void:
 	var direction := global_position.direction_to(actor.global_position)
 	velocity = _with_soft_separation(direction * get_move_speed(), delta)
@@ -383,20 +395,22 @@ func _with_soft_separation(base_velocity: Vector2, delta: float) -> Vector2:
 		_separation_refresh_timer = SEPARATION_REFRESH_INTERVAL
 
 	var separation_velocity := _cached_separation_push * SOFT_SEPARATION_FORCE
-	if separation_velocity == Vector2.ZERO:
+	var lane_return_velocity := _get_lane_return_velocity()
+	if separation_velocity == Vector2.ZERO and lane_return_velocity == Vector2.ZERO:
 		return base_velocity
 
 	var base_speed := base_velocity.length()
 	if base_speed <= 0.01:
-		return separation_velocity.limit_length(get_move_speed() * IDLE_SEPARATION_SPEED_FACTOR)
+		return (separation_velocity + lane_return_velocity).limit_length(get_move_speed() * IDLE_SEPARATION_SPEED_FACTOR)
 
 	var direction := base_velocity / base_speed
-	var forward_amount := separation_velocity.dot(direction)
+	var correction_velocity := separation_velocity + lane_return_velocity
+	var forward_amount := correction_velocity.dot(direction)
 	var adjusted := base_velocity
 	if forward_amount < 0.0:
 		adjusted += direction * forward_amount
 
-	adjusted += separation_velocity - direction * forward_amount
+	adjusted += correction_velocity - direction * forward_amount
 	if adjusted.length() > base_speed:
 		adjusted = adjusted.normalized() * base_speed
 
@@ -427,6 +441,60 @@ func _calculate_soft_separation_push() -> Vector2:
 func _fallback_separation_direction(actor: Actor) -> Vector2:
 	var angle := float(int(get_instance_id() + actor.get_instance_id()) % 360) * TAU / 360.0
 	return Vector2.RIGHT.rotated(angle)
+
+
+func _get_lane_return_velocity() -> Vector2:
+	var nearest: Vector2 = _nearest_point_on_lane_path()
+	var offset: Vector2 = nearest - global_position
+	var allowed_distance := _lane_corridor_radius()
+	var distance := offset.length()
+	if distance <= allowed_distance:
+		return Vector2.ZERO
+
+	return offset.normalized() * minf(LANE_RETURN_FORCE, distance - allowed_distance)
+
+
+func _clamp_to_lane_corridor() -> void:
+	var nearest: Vector2 = _nearest_point_on_lane_path()
+	var offset: Vector2 = global_position - nearest
+	var max_distance := _lane_corridor_radius() + LANE_HARD_CLAMP_PADDING
+	var distance := offset.length()
+	if distance <= max_distance:
+		return
+
+	global_position = nearest + offset.normalized() * max_distance
+
+
+func _lane_corridor_radius() -> float:
+	return get_hit_radius() + LANE_CORRIDOR_PADDING
+
+
+func _nearest_point_on_lane_path() -> Vector2:
+	if lane_path.size() == 0:
+		return global_position
+	if lane_path.size() == 1:
+		return lane_path[0]
+
+	var best_point := lane_path[0]
+	var best_distance_sq := INF
+	for i in range(lane_path.size() - 1):
+		var point := _nearest_point_on_segment(global_position, lane_path[i], lane_path[i + 1])
+		var distance_sq := global_position.distance_squared_to(point)
+		if distance_sq < best_distance_sq:
+			best_point = point
+			best_distance_sq = distance_sq
+
+	return best_point
+
+
+func _nearest_point_on_segment(point: Vector2, segment_start: Vector2, segment_end: Vector2) -> Vector2:
+	var segment := segment_end - segment_start
+	var length_sq := segment.length_squared()
+	if length_sq <= 0.01:
+		return segment_start
+
+	var t := clampf((point - segment_start).dot(segment) / length_sq, 0.0, 1.0)
+	return segment_start + segment * t
 
 
 func _tick_stuck_recovery(delta: float, previous_position: Vector2) -> void:

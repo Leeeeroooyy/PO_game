@@ -16,6 +16,7 @@ const VISUAL_REDRAW_INTERVAL := 1.0 / 30.0
 	"attack_damage": 10.0,
 	"attack_range": 42.0,
 	"attack_cooldown": 1.0,
+	"health_regen": 0.0,
 	"gold_reward": 5,
 	"experience_reward": 4,
 }
@@ -67,6 +68,7 @@ func _physics_process(delta: float) -> void:
 	if _attack_cooldown > 0.0:
 		_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 
+	_tick_health_regen(delta)
 	_tick_statuses(delta)
 	_visual_redraw_timer += delta
 	if is_alive() and _visual_redraw_timer >= VISUAL_REDRAW_INTERVAL:
@@ -432,6 +434,17 @@ func _die(killer: Actor) -> void:
 	set_physics_process(false)
 	died.emit(self, killer)
 	queue_free()
+
+
+func _tick_health_regen(delta: float) -> void:
+	if not is_alive() or delta <= 0.0:
+		return
+
+	var regen := _stat("health_regen")
+	if regen <= 0.0 or health >= _stat("max_health"):
+		return
+
+	heal(regen * delta)
 
 
 func _tick_statuses(delta: float) -> void:

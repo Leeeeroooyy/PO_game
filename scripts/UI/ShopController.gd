@@ -88,33 +88,22 @@ func refresh() -> void:
 		_rows.remove_child(child)
 		child.queue_free()
 
-	for definition in GameCatalog.create_unit_definitions().values():
-		if not bool(definition.get("is_lane_unit", false)):
+	for definition in GameCatalog.create_shop_upgrade_definitions().values():
+		if _shop != null and not _shop.is_upgrade_visible(definition):
 			continue
 
 		var unit_id := String(definition.get("id", ""))
 		var level := _shop.get_upgrade_level(unit_id) if _shop != null else 0
 		var cost := _shop.get_next_upgrade_cost(definition) if _shop != null else int(definition.get("upgrade_cost", 0))
+		var max_level := int(definition.get("max_level", 0))
+		var can_upgrade := _shop.can_upgrade(definition) if _shop != null else true
 		var next_level := level + 1
-		var next_health_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_HEALTH_BONUS_PER_LEVEL * 100.0)
-		var next_damage_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_DAMAGE_BONUS_PER_LEVEL * 100.0)
-		var next_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_MOVE_SPEED_BONUS_PER_LEVEL * 100.0)
-		var next_attack_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_ATTACK_SPEED_BONUS_PER_LEVEL * 100.0)
 
 		var button := Button.new()
-		button.text = "%s  Lv %d -> %d  %dg\n+%d%% HP  +%d%% DMG\n+%d%% MS  +%d%% AS" % [
-			definition.get("display_name", ""),
-			level,
-			next_level,
-			cost,
-			next_health_bonus,
-			next_damage_bonus,
-			next_speed_bonus,
-			next_attack_speed_bonus,
-		]
+		button.text = _upgrade_button_text(definition, level, next_level, cost, max_level, can_upgrade)
 		button.custom_minimum_size = Vector2(0.0, 78.0)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.disabled = _economy == null or _economy.gold < cost
+		button.disabled = not can_upgrade or _economy == null or _economy.gold < cost
 		button.pressed.connect(_buy_upgrade.bind(unit_id))
 		_rows.add_child(button)
 
@@ -130,3 +119,40 @@ func _buy_upgrade(unit_id: String) -> void:
 	if _shop != null:
 		_shop.buy_unit_upgrade(unit_id)
 	refresh()
+
+
+func _upgrade_button_text(definition: Dictionary, level: int, next_level: int, cost: int, max_level: int, can_upgrade: bool) -> String:
+	var name := String(definition.get("display_name", "Upgrade"))
+	if not can_upgrade:
+		return "%s  MAX %d\nFully upgraded" % [name, max_level]
+
+	if String(definition.get("shop_upgrade_type", GameCatalog.SHOP_UPGRADE_STAT)) == GameCatalog.SHOP_UPGRADE_WAVE_COUNT:
+		var current_count := _wave_count_for_level(definition, level)
+		var next_count := _wave_count_for_level(definition, next_level)
+		return "%s  %d -> %d  %dg\n%s" % [
+			name,
+			current_count,
+			next_count,
+			cost,
+			String(definition.get("description", "")),
+		]
+
+	var next_health_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_HEALTH_BONUS_PER_LEVEL * 100.0)
+	var next_damage_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_DAMAGE_BONUS_PER_LEVEL * 100.0)
+	var next_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_MOVE_SPEED_BONUS_PER_LEVEL * 100.0)
+	var next_attack_speed_bonus := roundi(float(next_level) * WaveSpawner.UPGRADE_ATTACK_SPEED_BONUS_PER_LEVEL * 100.0)
+	return "%s  Lv %d -> %d  %dg\n+%d%% HP  +%d%% DMG\n+%d%% MS  +%d%% AS" % [
+		name,
+		level,
+		next_level,
+		cost,
+		next_health_bonus,
+		next_damage_bonus,
+		next_speed_bonus,
+		next_attack_speed_bonus,
+	]
+
+
+func _wave_count_for_level(definition: Dictionary, level: int) -> int:
+	var count := int(definition.get("base_count", 0)) + level * int(definition.get("count_per_level", 1))
+	return mini(count, int(definition.get("max_count", count)))

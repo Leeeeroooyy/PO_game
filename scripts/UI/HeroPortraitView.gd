@@ -7,6 +7,8 @@ const ATLAS_ROWS := 3.0
 
 var hero_id := GameCatalog.DEFAULT_HERO_ID
 var hero_color := Color(0.34, 0.78, 0.36)
+var portrait_kind := "hero"
+var portrait_id := GameCatalog.DEFAULT_HERO_ID
 
 
 func _ready() -> void:
@@ -19,6 +21,16 @@ func _ready() -> void:
 func set_hero(new_hero_id: String, new_hero_color: Color) -> void:
 	hero_id = new_hero_id
 	hero_color = new_hero_color
+	portrait_kind = "hero"
+	portrait_id = new_hero_id
+	queue_redraw()
+
+
+func set_actor_portrait(kind: String, id: String, color: Color) -> void:
+	portrait_kind = kind
+	portrait_id = id
+	hero_id = id
+	hero_color = color
 	queue_redraw()
 
 
@@ -33,6 +45,11 @@ func _draw() -> void:
 	_px(origin, cell, 2, 2, 12, 12, hero_color.darkened(0.28))
 	_px(origin, cell, 1, 1, 14, 2, Color(0.92, 0.76, 0.36, 0.72))
 	_px(origin, cell, 1, 13, 14, 2, Color(0.04, 0.03, 0.02, 0.75))
+
+	if portrait_kind == "structure":
+		_draw_structure_portrait(origin, cell)
+		draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
+		return
 
 	if _draw_atlas_portrait(origin, side):
 		draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
@@ -57,7 +74,7 @@ func _draw_atlas_portrait(origin: Vector2, side: float) -> bool:
 	if SPRITE_ATLAS == null:
 		return false
 
-	var cell := _hero_atlas_cell()
+	var cell := _atlas_cell()
 	var cell_size := Vector2(float(SPRITE_ATLAS.get_width()) / ATLAS_COLUMNS, float(SPRITE_ATLAS.get_height()) / ATLAS_ROWS)
 	var source := Rect2(Vector2(float(cell.x) * cell_size.x, float(cell.y) * cell_size.y), cell_size)
 	var destination := Rect2(origin + Vector2(side * 0.02, side * 0.02), Vector2(side * 0.96, side * 0.96))
@@ -66,18 +83,46 @@ func _draw_atlas_portrait(origin: Vector2, side: float) -> bool:
 	return true
 
 
-func _hero_atlas_cell() -> Vector2i:
-	match hero_id:
-		"bard_frog":
-			return Vector2i(1, 0)
-		"axe_barbarian":
-			return Vector2i(2, 0)
-		"sorcerer":
-			return Vector2i(3, 0)
-		"ancient_druid":
-			return Vector2i(0, 1)
+func _atlas_cell() -> Vector2i:
+	match portrait_kind:
+		"lane_unit":
+			match portrait_id:
+				"line_mage":
+					return Vector2i(3, 1)
+				"line_siege":
+					return Vector2i(0, 2)
+				_:
+					return Vector2i(2, 1)
+		"neutral":
+			match portrait_id:
+				"neutral_spitter":
+					return Vector2i(2, 2)
+				"neutral_claw":
+					return Vector2i(3, 2)
+				_:
+					return Vector2i(1, 2)
+		"enemy_hero":
+			return Vector2i(1, 1)
+		"summon":
+			match portrait_id:
+				"treant":
+					return Vector2i(0, 1)
+				"snake":
+					return Vector2i(3, 2)
+				_:
+					return Vector2i(2, 1)
 		_:
-			return Vector2i(0, 0)
+			match portrait_id:
+				"bard_frog":
+					return Vector2i(1, 0)
+				"axe_barbarian":
+					return Vector2i(2, 0)
+				"sorcerer":
+					return Vector2i(3, 0)
+				"ancient_druid":
+					return Vector2i(0, 1)
+				_:
+					return Vector2i(0, 0)
 
 
 func _draw_portrait_accent(origin: Vector2, side: float) -> void:
@@ -164,6 +209,21 @@ func _draw_ancient_druid(origin: Vector2, cell: float) -> void:
 	_px(origin, cell, 9, 6, 1, 1, Color(0.02, 0.02, 0.01))
 	_px(origin, cell, 8, 8, 1, 1, rune)
 	_px(origin, cell, 7, 11, 2, 1, rune.darkened(0.05))
+
+
+func _draw_structure_portrait(origin: Vector2, cell: float) -> void:
+	var stone := hero_color.darkened(0.18)
+	var trim := hero_color.lightened(0.16)
+	if portrait_id == "base":
+		_px(origin, cell, 4, 4, 8, 8, stone)
+		_px(origin, cell, 3, 8, 10, 4, stone.darkened(0.16))
+		_px(origin, cell, 5, 2, 6, 3, trim)
+		_px(origin, cell, 7, 6, 2, 4, Color(1.0, 0.86, 0.36))
+	else:
+		_px(origin, cell, 6, 3, 4, 10, stone)
+		_px(origin, cell, 4, 10, 8, 3, stone.darkened(0.16))
+		_px(origin, cell, 5, 2, 6, 3, trim)
+		_px(origin, cell, 7, 5, 2, 2, Color(1.0, 0.86, 0.36))
 
 
 func _px(origin: Vector2, cell: float, x: int, y: int, w: int, h: int, color: Color) -> void:

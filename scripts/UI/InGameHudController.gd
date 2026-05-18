@@ -9,11 +9,14 @@ var _gold_label: Label
 var _experience_label: Label
 var _health_label: Label
 var _hero_label: Label
-var _respawn_label: Label
+var _combat_stats_label: Label
+var _utility_stats_label: Label
 var _wave_timer_label: Label
 var _skill_points_label: Label
+var _death_overlay: Control
+var _death_timer_label: Label
 var _ability_tooltip_panel: PanelContainer
-var _ability_tooltip_label: Label
+var _ability_tooltip_label: RichTextLabel
 var _hovered_ability_slot := -1
 var _portrait_view: HeroPortraitView
 var _ability_slots: Array[Control] = []
@@ -63,7 +66,7 @@ func _ready() -> void:
 	bottom_bar.anchor_bottom = 1.0
 	bottom_bar.offset_left = 18.0
 	bottom_bar.offset_right = -18.0
-	bottom_bar.offset_top = -158.0
+	bottom_bar.offset_top = -188.0
 	bottom_bar.offset_bottom = -12.0
 	bottom_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bottom_bar)
@@ -80,7 +83,7 @@ func _ready() -> void:
 	row.add_child(_create_portrait_panel())
 
 	var info_panel := VBoxContainer.new()
-	info_panel.custom_minimum_size = Vector2(220.0, 132.0)
+	info_panel.custom_minimum_size = Vector2(230.0, 162.0)
 	info_panel.add_theme_constant_override("separation", 4)
 	row.add_child(info_panel)
 
@@ -89,12 +92,14 @@ func _ready() -> void:
 	info_panel.add_child(_hero_label)
 
 	_health_label = _create_hud_label("HP")
-	_respawn_label = _create_hud_label("")
+	_combat_stats_label = _create_hud_label("DMG")
+	_utility_stats_label = _create_hud_label("SPD")
 	_gold_label = _create_hud_label("Gold")
 	_experience_label = _create_hud_label("Hero Lv")
 	_skill_points_label = _create_hud_label("Skill pts: 0")
 	info_panel.add_child(_health_label)
-	info_panel.add_child(_respawn_label)
+	info_panel.add_child(_combat_stats_label)
+	info_panel.add_child(_utility_stats_label)
 	info_panel.add_child(_experience_label)
 	info_panel.add_child(_skill_points_label)
 	info_panel.add_child(_gold_label)
@@ -133,6 +138,7 @@ func _ready() -> void:
 	hint.modulate = Color(0.86, 0.78, 0.58)
 	right_panel.add_child(hint)
 
+	_create_death_overlay()
 	_create_ability_tooltip_panel()
 
 
@@ -180,6 +186,8 @@ func show_selected_actor(actor: Actor) -> void:
 			_hero_label.text = "Selected: none"
 		if _health_label != null:
 			_health_label.text = "HP: -"
+		_update_selected_stats(null)
+		_update_portrait()
 		return
 
 	if not _selected_actor.health_changed.is_connected(_on_selected_health_changed):
@@ -187,28 +195,25 @@ func show_selected_actor(actor: Actor) -> void:
 
 	if _hero_label != null:
 		_hero_label.text = "%s: %s" % [_selected_kind(_selected_actor), _selected_name(_selected_actor)]
+	_update_portrait_for_actor(_selected_actor)
 	_on_selected_health_changed(_selected_actor.health, float(_selected_actor.stats.get("max_health", 0.0)))
+	_update_selected_stats(_selected_actor)
 
 
 func set_respawn_time(remaining: float) -> void:
-	if _respawn_label == null:
-		return
-
-	if remaining > 0.0:
-		_respawn_label.visible = true
-		_respawn_label.text = "Respawn: %ds" % ceili(remaining)
-		if _health_label != null and _selected_actor == _hero:
-			_health_label.text = "HP: dead"
-	else:
-		_respawn_label.visible = false
-		_respawn_label.text = ""
+	if _death_overlay != null:
+		_death_overlay.visible = remaining > 0.0
+	if _death_timer_label != null:
+		_death_timer_label.text = "Respawn: %ds" % ceili(maxf(0.0, remaining))
+	if remaining > 0.0 and _health_label != null and _selected_actor == _hero:
+		_health_label.text = "HP: dead"
 
 
 func set_wave_timer(remaining: float, next_wave_number: int, has_catapult := false) -> void:
 	if _wave_timer_label == null:
 		return
 
-	var wave_name := "Catapult wave" if has_catapult else "Wave"
+	var wave_name := "Siege wave" if has_catapult else "Wave"
 	_wave_timer_label.text = "%s %d in %ds" % [wave_name, next_wave_number, ceili(maxf(0.0, remaining))]
 
 
@@ -245,18 +250,72 @@ func _create_ability_tooltip_panel() -> void:
 	_ability_tooltip_panel.anchor_bottom = 1.0
 	_ability_tooltip_panel.offset_left = -120.0
 	_ability_tooltip_panel.offset_right = 300.0
-	_ability_tooltip_panel.offset_top = -328.0
+	_ability_tooltip_panel.offset_top = -430.0
 	_ability_tooltip_panel.offset_bottom = -178.0
 	_ability_tooltip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ability_tooltip_panel.visible = false
 	add_child(_ability_tooltip_panel)
 
-	_ability_tooltip_label = Label.new()
-	_ability_tooltip_label.custom_minimum_size = Vector2(390.0, 126.0)
+	_ability_tooltip_label = RichTextLabel.new()
+	_ability_tooltip_label.custom_minimum_size = Vector2(390.0, 226.0)
+	_ability_tooltip_label.bbcode_enabled = true
+	_ability_tooltip_label.fit_content = true
+	_ability_tooltip_label.scroll_active = false
 	_ability_tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_ability_tooltip_label.add_theme_font_size_override("font_size", 13)
+	_ability_tooltip_label.add_theme_font_size_override("normal_font_size", 13)
 	_ability_tooltip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ability_tooltip_panel.add_child(_ability_tooltip_label)
+
+
+func _create_death_overlay() -> void:
+	_death_overlay = Control.new()
+	_death_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_death_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_death_overlay.visible = false
+	add_child(_death_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.0, 0.0, 0.0, 0.58)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_death_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_death_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(360.0, 118.0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_theme_constant_override("separation", 8)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(content)
+
+	var title := Label.new()
+	title.text = "YOU ARE DEAD"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", Color(1.0, 0.22, 0.18))
+	title.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(title)
+
+	_death_timer_label = Label.new()
+	_death_timer_label.text = "Respawn: 0s"
+	_death_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_death_timer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_death_timer_label.add_theme_font_size_override("font_size", 22)
+	_death_timer_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.72))
+	_death_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(_death_timer_label)
 
 
 func _create_ability_slot(number: int) -> Control:
@@ -367,7 +426,7 @@ func _set_ability_names(abilities: Array) -> void:
 			var ability: Dictionary = abilities[i]
 			label.text = String(ability.get("display_name", "-"))
 			if slot != null:
-				slot.tooltip_text = _ability_tooltip(i + 1, ability, _hero.get_ability_level(i) if _hero != null and is_instance_valid(_hero) else 0)
+				slot.tooltip_text = String(ability.get("display_name", "Ability"))
 		else:
 			label.text = "-"
 			if slot != null:
@@ -380,6 +439,39 @@ func _update_portrait() -> void:
 
 	if _portrait_view != null:
 		_portrait_view.set_hero(_hero.hero_id, _hero.get_hero_color())
+
+
+func _update_portrait_for_actor(actor: Actor) -> void:
+	if _portrait_view == null or actor == null or not is_instance_valid(actor):
+		return
+
+	if actor is HeroController:
+		var hero := actor as HeroController
+		_portrait_view.set_actor_portrait("hero", hero.hero_id, hero.get_hero_color())
+	elif actor is EnemyHeroAi:
+		_portrait_view.set_actor_portrait("enemy_hero", "enemy_hero", _portrait_team_color(actor))
+	elif actor is LaneUnit:
+		_portrait_view.set_actor_portrait("lane_unit", (actor as LaneUnit).unit_id, _portrait_team_color(actor))
+	elif actor is NeutralUnit:
+		_portrait_view.set_actor_portrait("neutral", (actor as NeutralUnit).unit_id, _portrait_team_color(actor))
+	elif actor is SummonedCompanion:
+		_portrait_view.set_actor_portrait("summon", (actor as SummonedCompanion).companion_kind, _portrait_team_color(actor))
+	elif actor is BaseStructure:
+		_portrait_view.set_actor_portrait("structure", "base", _portrait_team_color(actor))
+	elif actor is TowerStructure:
+		_portrait_view.set_actor_portrait("structure", "tower", _portrait_team_color(actor))
+	else:
+		_portrait_view.set_actor_portrait("hero", GameCatalog.DEFAULT_HERO_ID, _portrait_team_color(actor))
+
+
+func _portrait_team_color(actor: Actor) -> Color:
+	match actor.team:
+		GameCatalog.TEAM_PLAYER:
+			return Color(0.25, 0.78, 0.38)
+		GameCatalog.TEAM_ENEMY:
+			return Color(0.88, 0.24, 0.22)
+		_:
+			return Color(0.85, 0.72, 0.32)
 
 
 func _update_ability_cooldowns() -> void:
@@ -398,9 +490,9 @@ func _update_ability_cooldowns() -> void:
 		label.visible = remaining > 0.0
 		label.text = str(ceili(remaining)) if remaining > 0.0 else ""
 		if level_label != null:
-			level_label.text = "%d/4" % ability_level
+			level_label.text = "%d/%d" % [ability_level, GameCatalog.MAX_ABILITY_LEVEL]
 		if upgrade_label != null:
-			upgrade_label.visible = skill_points > 0 and ability_level < 4
+			upgrade_label.visible = skill_points > 0 and ability_level < GameCatalog.MAX_ABILITY_LEVEL
 		if slot != null:
 			if ability_level <= 0:
 				slot.modulate = Color(0.38, 0.38, 0.38, 1.0)
@@ -410,7 +502,7 @@ func _update_ability_cooldowns() -> void:
 				slot.modulate = Color.WHITE
 			if i < abilities.size():
 				var ability: Dictionary = abilities[i]
-				slot.tooltip_text = _ability_tooltip(i + 1, ability, ability_level)
+				slot.tooltip_text = String(ability.get("display_name", "Ability"))
 
 
 func _update_skill_points() -> void:
@@ -479,33 +571,94 @@ func _refresh_ability_tooltip() -> void:
 
 func _ability_tooltip(slot_number: int, ability: Dictionary, ability_level: int = 0) -> String:
 	var lines: Array[String] = []
-	lines.append("%d - %s" % [slot_number, String(ability.get("display_name", "Ability"))])
-	lines.append("Level: %d/4" % ability_level)
+	lines.append("[b]%d - %s[/b]" % [slot_number, String(ability.get("display_name", "Ability"))])
+	lines.append("Level: %d/%d" % [ability_level, GameCatalog.MAX_ABILITY_LEVEL])
 	lines.append("Status: %s" % ("Available" if ability_level > 0 else "Locked"))
 	lines.append(String(ability.get("description", "")))
 	lines.append("")
 	lines.append("Target: %s" % _format_targeting(String(ability.get("targeting", ""))))
-	lines.append("Damage/Power: %s" % _format_ability_power(ability, ability_level))
-	if ability_level > 0 and ability_level < 4:
-		lines.append("Next level: %s" % _format_number(_ability_power_at_level(ability, ability_level + 1)))
-	elif ability_level <= 0:
-		lines.append("Learned value: %s" % _format_number(_ability_power_at_level(ability, 1)))
-	lines.append("Cast range: %s" % _format_number(float(ability.get("range", 0.0))))
-	lines.append("Effect radius: %s" % _format_number(float(ability.get("radius", 0.0))))
-	lines.append("Cooldown: %ss" % _format_number(float(ability.get("cooldown", 0.0))))
+	lines.append("")
+	for stat_key in _ability_tooltip_stat_keys(ability):
+		lines.append("%s: %s" % [_ability_stat_label(stat_key), _format_ability_stat_levels(ability, stat_key, ability_level)])
+
 	return "\n".join(lines)
 
 
-func _format_ability_power(ability: Dictionary, ability_level: int) -> String:
-	if ability_level <= 0:
-		return "-"
+func _ability_tooltip_stat_keys(ability: Dictionary) -> Array:
+	var keys := []
+	for stat_key in ["power", "cooldown", "range", "radius"]:
+		if _should_show_ability_stat(ability, stat_key):
+			keys.append(stat_key)
 
-	return _format_number(_ability_power_at_level(ability, ability_level))
+	for stat_key_value in GameCatalog.ability_scaled_stat_keys(ability):
+		var stat_key := String(stat_key_value)
+		if not keys.has(stat_key) and _should_show_ability_stat(ability, stat_key):
+			keys.append(stat_key)
+
+	return keys
 
 
-func _ability_power_at_level(ability: Dictionary, ability_level: int) -> float:
-	var base_power := float(ability.get("power", 0.0))
-	return base_power * (1.0 + float(maxi(ability_level, 1) - 1) * 0.25)
+func _should_show_ability_stat(ability: Dictionary, stat_key: String) -> bool:
+	if stat_key == "cooldown":
+		return true
+	if not ability.has(stat_key):
+		return false
+
+	return not is_zero_approx(float(ability.get(stat_key, 0.0)))
+
+
+func _format_ability_stat_levels(ability: Dictionary, stat_key: String, current_level: int) -> String:
+	var values := GameCatalog.ability_stat_values(ability, stat_key)
+	var parts: Array[String] = []
+	for i in range(values.size()):
+		var level := i + 1
+		var text := _format_stat_value(stat_key, values[i])
+		if current_level == level:
+			text = "[b]%s[/b]" % text
+		parts.append(text)
+
+	return " / ".join(parts)
+
+
+func _format_stat_value(stat_key: String, value: float) -> String:
+	var number := _format_number(value)
+	match stat_key:
+		"cooldown", "duration", "taunt_duration", "freeze_duration":
+			return "%ss" % number
+		"speed_multiplier", "attack_damage_multiplier", "slow_multiplier", "damage_reduction_multiplier":
+			return "%sx" % number
+		_:
+			return number
+
+
+func _ability_stat_label(stat_key: String) -> String:
+	match stat_key:
+		"power":
+			return "Damage/Power"
+		"cooldown":
+			return "Cooldown"
+		"range":
+			return "Cast range"
+		"radius":
+			return "Effect radius"
+		"duration":
+			return "Duration"
+		"taunt_duration":
+			return "Taunt"
+		"freeze_duration":
+			return "Freeze"
+		"pull_distance":
+			return "Pull"
+		"speed_multiplier":
+			return "Move speed"
+		"attack_damage_multiplier":
+			return "Attack damage"
+		"slow_multiplier":
+			return "Slow"
+		"damage_reduction_multiplier":
+			return "Damage taken"
+		_:
+			return stat_key.capitalize()
 
 
 func _format_targeting(targeting: String) -> String:
@@ -544,11 +697,32 @@ func _on_experience_changed(level: int, experience: int, required_experience: in
 func _on_hero_health_changed(current: float, maximum: float) -> void:
 	if _selected_actor == _hero and _health_label != null:
 		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+		_update_selected_stats(_hero)
 
 
 func _on_selected_health_changed(current: float, maximum: float) -> void:
+	if _hero_label != null and _selected_actor != null and is_instance_valid(_selected_actor):
+		_hero_label.text = "%s: %s" % [_selected_kind(_selected_actor), _selected_name(_selected_actor)]
 	if _health_label != null:
 		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+	_update_selected_stats(_selected_actor)
+
+
+func _update_selected_stats(actor: Actor) -> void:
+	if _combat_stats_label == null or _utility_stats_label == null:
+		return
+	if actor == null or not is_instance_valid(actor):
+		_combat_stats_label.text = "DMG: -"
+		_utility_stats_label.text = "SPD: -"
+		return
+
+	var attack_damage := float(actor.stats.get("attack_damage", 0.0))
+	var attack_cooldown := float(actor.stats.get("attack_cooldown", 0.0))
+	var attacks_per_second := 1.0 / maxf(attack_cooldown, 0.01)
+	var move_speed := float(actor.stats.get("move_speed", 0.0))
+	var health_regen := float(actor.stats.get("health_regen", 0.0))
+	_combat_stats_label.text = "DMG %s  AS %s/s" % [_format_number(attack_damage), _format_number(attacks_per_second)]
+	_utility_stats_label.text = "MS %s  Regen %s/s" % [_format_number(move_speed), _format_number(health_regen)]
 
 
 func _selected_kind(actor: Actor) -> String:
@@ -572,13 +746,14 @@ func _selected_kind(actor: Actor) -> String:
 
 func _selected_name(actor: Actor) -> String:
 	if actor is HeroController:
-		return (actor as HeroController).hero_id
+		return (actor as HeroController).get_display_name()
 	if actor is LaneUnit:
-		return (actor as LaneUnit).unit_id
+		var lane_unit := actor as LaneUnit
+		return "%s Lv %d" % [GameCatalog.unit_display_name(lane_unit.unit_id), lane_unit.upgrade_level]
 	if actor is NeutralUnit:
-		return (actor as NeutralUnit).unit_id
+		return GameCatalog.unit_display_name((actor as NeutralUnit).unit_id)
 	if actor is SummonedCompanion:
-		return (actor as SummonedCompanion).companion_kind
+		return _summon_display_name((actor as SummonedCompanion).companion_kind)
 	if actor is TowerStructure:
 		var tower := actor as TowerStructure
 		return "%s T%d" % [tower.team, tower.tower_tier]
@@ -586,3 +761,13 @@ func _selected_name(actor: Actor) -> String:
 		return actor.team
 
 	return actor.name
+
+
+func _summon_display_name(kind: String) -> String:
+	match kind:
+		"treant":
+			return "Treant"
+		"snake":
+			return "Charmed Snake"
+		_:
+			return "Wolf Companion"
