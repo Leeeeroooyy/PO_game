@@ -30,6 +30,7 @@ var _lane_manager: LaneManager
 var _timer := 0.0
 var _wave_number := 0
 var _running := false
+var _unit_definitions := {}
 
 
 func _process(delta: float) -> void:
@@ -82,7 +83,7 @@ func get_unit_upgrade_level(unit_id: String) -> int:
 
 
 func create_upgraded_stats(unit_id: String, team: String = GameCatalog.TEAM_PLAYER) -> Dictionary:
-	var definitions := GameCatalog.create_unit_definitions()
+	var definitions := _get_unit_definitions()
 	if not definitions.has(unit_id):
 		return {}
 
@@ -109,7 +110,7 @@ func _spawn_lane_pair(unit_id: String, lane: String, formation_slot: int) -> voi
 
 
 func _spawn_unit(unit_id: String, team: String, lane: String, formation_slot: int) -> void:
-	var definitions := GameCatalog.create_unit_definitions()
+	var definitions := _get_unit_definitions()
 	if not definitions.has(unit_id):
 		return
 
@@ -198,6 +199,13 @@ func _create_scaled_stats(definition: Dictionary, level: int) -> Dictionary:
 	unit_stats["move_speed"] = float(unit_stats.get("move_speed", 1.0)) * move_multiplier
 	unit_stats["attack_cooldown"] = float(unit_stats.get("attack_cooldown", 1.0)) * cooldown_multiplier
 	return unit_stats
+
+
+func _get_unit_definitions() -> Dictionary:
+	if _unit_definitions.is_empty():
+		_unit_definitions = GameCatalog.create_unit_definitions()
+
+	return _unit_definitions
 
 
 func _get_effective_upgrade_level(unit_id: String, team: String) -> int:

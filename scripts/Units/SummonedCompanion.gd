@@ -8,6 +8,7 @@ const UnitArtRenderer := preload("res://scripts/Visuals/UnitArt.gd")
 @export var aggro_range := 180.0
 
 const SOFT_SEPARATION_FORCE := 74.0
+const IDLE_SEPARATION_SPEED_FACTOR := 0.35
 
 var owner_actor: Actor
 var target_actor: Actor
@@ -35,7 +36,7 @@ func _physics_process(delta: float) -> void:
 		if not try_attack(target):
 			velocity = _with_soft_separation(global_position.direction_to(target.global_position) * get_move_speed())
 		else:
-			velocity = Vector2.ZERO
+			velocity = _with_soft_separation(Vector2.ZERO)
 	elif objective_position != Vector2.ZERO and global_position.distance_to(objective_position) > 12.0:
 		velocity = _with_soft_separation(global_position.direction_to(objective_position) * get_move_speed())
 	else:
@@ -111,14 +112,33 @@ func _with_soft_separation(base_velocity: Vector2) -> Vector2:
 		var delta := global_position - actor.global_position
 		var distance := delta.length()
 		var spacing := get_hit_radius() + actor.get_hit_radius() + 6.0
-		if distance <= 0.01 or distance >= spacing:
+		if distance >= spacing:
 			continue
 
-		push += delta.normalized() * ((spacing - distance) / spacing)
+		var direction := delta / distance if distance > 0.01 else _fallback_separation_direction(actor)
+		push += direction * ((spacing - distance) / spacing)
 
-	var adjusted := base_velocity + push * SOFT_SEPARATION_FORCE
-	var max_speed := get_move_speed() * 1.24
-	if adjusted.length() > max_speed:
-		adjusted = adjusted.normalized() * max_speed
+	var separation_velocity := push * SOFT_SEPARATION_FORCE
+	if separation_velocity == Vector2.ZERO:
+		return base_velocity
+
+	var base_speed := base_velocity.length()
+	if base_speed <= 0.01:
+		return separation_velocity.limit_length(get_move_speed() * IDLE_SEPARATION_SPEED_FACTOR)
+
+	var direction := base_velocity / base_speed
+	var forward_amount := separation_velocity.dot(direction)
+	var adjusted := base_velocity
+	if forward_amount < 0.0:
+		adjusted += direction * forward_amount
+
+	adjusted += separation_velocity - direction * forward_amount
+	if adjusted.length() > base_speed:
+		adjusted = adjusted.normalized() * base_speed
 
 	return adjusted
+
+
+func _fallback_separation_direction(actor: Actor) -> Vector2:
+	var angle := float(int(get_instance_id() + actor.get_instance_id()) % 360) * TAU / 360.0
+	return Vector2.RIGHT.rotated(angle)

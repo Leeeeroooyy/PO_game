@@ -20,7 +20,10 @@ const LANE_CREEP_FOCUS_RANGE := 560.0
 const HERO_RETALIATION_DURATION := 2.8
 const HERO_RETALIATION_CHASE_PADDING := 120.0
 const SOFT_SEPARATION_FORCE := 88.0
+const IDLE_SEPARATION_SPEED_FACTOR := 0.36
 const STUCK_RECOVERY_TIME := 0.65
+const TARGET_REFRESH_INTERVAL := 0.18
+const SEPARATION_REFRESH_INTERVAL := 0.10
 
 var lane_path := PackedVector2Array()
 var _waypoint_index := 1
@@ -29,6 +32,9 @@ var _combat_target: Actor
 var _retaliation_target: Actor
 var _retaliation_timer := 0.0
 var _stuck_timer := 0.0
+var _target_refresh_timer := 0.0
+var _separation_refresh_timer := 0.0
+var _cached_separation_push := Vector2.ZERO
 
 
 func _physics_process(delta: float) -> void:
@@ -41,14 +47,14 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var previous_position := global_position
-	var enemy := _choose_combat_target()
+	var enemy := _choose_combat_target(delta)
 	if enemy != null:
 		if try_attack(enemy):
-			velocity = Vector2.ZERO
+			velocity = _with_soft_separation(Vector2.ZERO, delta)
 		else:
-			_move_toward_actor(enemy)
+			_move_toward_actor(enemy, delta)
 	else:
-		_move_along_lane()
+		_move_along_lane(delta)
 
 	move_and_slide()
 	_tick_stuck_recovery(delta, previous_position)
@@ -63,6 +69,9 @@ func configure_lane_unit(new_unit_id: String, new_team: String, new_lane: String
 	_retaliation_target = null
 	_retaliation_timer = 0.0
 	_stuck_timer = 0.0
+	_target_refresh_timer = float(get_instance_id() % 1000) / 1000.0 * TARGET_REFRESH_INTERVAL
+	_separation_refresh_timer = float(int(get_instance_id() / 7) % 1000) / 1000.0 * SEPARATION_REFRESH_INTERVAL
+	_cached_separation_push = Vector2.ZERO
 	collision_layer = 0
 	collision_mask = 0
 	global_position = lane_path[0] if lane_path.size() > 0 else Vector2.ZERO
@@ -198,9 +207,16 @@ func _tick_retaliation(delta: float) -> void:
 		_retaliation_target = null
 
 
-func _choose_combat_target() -> Actor:
+func _choose_combat_target(delta: float) -> Actor:
 	if _is_valid_lane_target(_combat_target) and _can_keep_combat_target(_combat_target):
 		return _combat_target
+
+	_target_refresh_timer = maxf(0.0, _target_refresh_timer - delta)
+	if _target_refresh_timer > 0.0:
+		_combat_target = null
+		return null
+
+	_target_refresh_timer = TARGET_REFRESH_INTERVAL
 
 	var lane_creep_target := _find_best_lane_target(LANE_CREEP_FOCUS_RANGE, false, true)
 	if lane_creep_target != null:
@@ -224,7 +240,7 @@ func _find_best_lane_target(search_radius: float, allow_heroes := false, only_la
 	var best: Actor = null
 	var best_score := INF
 
-	for node in get_tree().get_nodes_in_group("combat_actor"):
+	for node in _get_lane_target_nodes():
 		var actor := node as Actor
 		if not _is_valid_lane_target(actor):
 			continue
@@ -243,6 +259,16 @@ func _find_best_lane_target(search_radius: float, allow_heroes := false, only_la
 			best_score = score
 
 	return best
+
+
+func _get_lane_target_nodes() -> Array:
+	match team:
+		GameCatalog.TEAM_PLAYER:
+			return get_tree().get_nodes_in_group("team_enemy")
+		GameCatalog.TEAM_ENEMY:
+			return get_tree().get_nodes_in_group("team_player")
+		_:
+			return get_tree().get_nodes_in_group("combat_actor")
 
 
 func _can_keep_combat_target(candidate) -> bool:
@@ -327,12 +353,12 @@ func _edge_distance_to(candidate) -> float:
 	return maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
 
 
-func _move_toward_actor(actor: Actor) -> void:
+func _move_toward_actor(actor: Actor, delta: float) -> void:
 	var direction := global_position.direction_to(actor.global_position)
-	velocity = _with_soft_separation(direction * get_move_speed())
+	velocity = _with_soft_separation(direction * get_move_speed(), delta)
 
 
-func _move_along_lane() -> void:
+func _move_along_lane(delta: float) -> void:
 	if lane_path.is_empty() or _waypoint_index >= lane_path.size():
 		velocity = Vector2.ZERO
 		return
@@ -347,12 +373,39 @@ func _move_along_lane() -> void:
 
 		target = lane_path[_waypoint_index]
 
-	velocity = _with_soft_separation(global_position.direction_to(target) * get_move_speed())
+	velocity = _with_soft_separation(global_position.direction_to(target) * get_move_speed(), delta)
 
 
-func _with_soft_separation(base_velocity: Vector2) -> Vector2:
+func _with_soft_separation(base_velocity: Vector2, delta: float) -> Vector2:
+	_separation_refresh_timer = maxf(0.0, _separation_refresh_timer - delta)
+	if _separation_refresh_timer <= 0.0:
+		_cached_separation_push = _calculate_soft_separation_push()
+		_separation_refresh_timer = SEPARATION_REFRESH_INTERVAL
+
+	var separation_velocity := _cached_separation_push * SOFT_SEPARATION_FORCE
+	if separation_velocity == Vector2.ZERO:
+		return base_velocity
+
+	var base_speed := base_velocity.length()
+	if base_speed <= 0.01:
+		return separation_velocity.limit_length(get_move_speed() * IDLE_SEPARATION_SPEED_FACTOR)
+
+	var direction := base_velocity / base_speed
+	var forward_amount := separation_velocity.dot(direction)
+	var adjusted := base_velocity
+	if forward_amount < 0.0:
+		adjusted += direction * forward_amount
+
+	adjusted += separation_velocity - direction * forward_amount
+	if adjusted.length() > base_speed:
+		adjusted = adjusted.normalized() * base_speed
+
+	return adjusted
+
+
+func _calculate_soft_separation_push() -> Vector2:
 	var push := Vector2.ZERO
-	for node in get_tree().get_nodes_in_group("combat_actor"):
+	for node in get_tree().get_nodes_in_group("team_%s" % team):
 		var actor := node as Actor
 		if actor == null or actor == self or not is_instance_valid(actor) or not actor.is_alive() or actor.team != team:
 			continue
@@ -362,17 +415,18 @@ func _with_soft_separation(base_velocity: Vector2) -> Vector2:
 		var delta := global_position - actor.global_position
 		var distance := delta.length()
 		var spacing := get_hit_radius() + actor.get_hit_radius() + 8.0
-		if distance <= 0.01 or distance >= spacing:
+		if distance >= spacing:
 			continue
 
-		push += delta.normalized() * ((spacing - distance) / spacing)
+		var direction := delta / distance if distance > 0.01 else _fallback_separation_direction(actor)
+		push += direction * ((spacing - distance) / spacing)
 
-	var adjusted := base_velocity + push * SOFT_SEPARATION_FORCE
-	var max_speed := get_move_speed() * 1.28
-	if adjusted.length() > max_speed:
-		adjusted = adjusted.normalized() * max_speed
+	return push
 
-	return adjusted
+
+func _fallback_separation_direction(actor: Actor) -> Vector2:
+	var angle := float(int(get_instance_id() + actor.get_instance_id()) % 360) * TAU / 360.0
+	return Vector2.RIGHT.rotated(angle)
 
 
 func _tick_stuck_recovery(delta: float, previous_position: Vector2) -> void:

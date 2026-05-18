@@ -6,6 +6,7 @@ signal health_changed(current: float, maximum: float)
 
 const ATTACK_VISUAL_DURATION := 0.34
 const CAST_VISUAL_DURATION := 0.46
+const VISUAL_REDRAW_INTERVAL := 1.0 / 30.0
 
 @export var team := "neutral"
 @export var lane := "middle"
@@ -40,6 +41,7 @@ var _cast_visual_timer := 0.0
 var _cast_visual_color := Color.WHITE
 var _cast_visual_id := ""
 var _visual_facing_sign := 1.0
+var _visual_redraw_timer := 0.0
 
 
 func _ready() -> void:
@@ -66,7 +68,9 @@ func _physics_process(delta: float) -> void:
 		_attack_cooldown = maxf(0.0, _attack_cooldown - delta)
 
 	_tick_statuses(delta)
-	if is_alive():
+	_visual_redraw_timer += delta
+	if is_alive() and _visual_redraw_timer >= VISUAL_REDRAW_INTERVAL:
+		_visual_redraw_timer = 0.0
 		queue_redraw()
 
 
@@ -137,17 +141,30 @@ func find_nearest_enemy(radius: float) -> Actor:
 	var best: Actor = null
 	var best_edge_distance := radius
 
-	for node in get_tree().get_nodes_in_group("combat_actor"):
-		var actor := node as Actor
-		if actor == null or not can_damage(actor):
-			continue
+	for group_name in _get_enemy_search_groups():
+		for node in get_tree().get_nodes_in_group(group_name):
+			var actor := node as Actor
+			if actor == null or not can_damage(actor):
+				continue
 
-		var edge_distance := maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
-		if edge_distance <= radius and edge_distance < best_edge_distance:
-			best = actor
-			best_edge_distance = edge_distance
+			var edge_distance := maxf(0.0, global_position.distance_to(actor.global_position) - actor.get_hit_radius())
+			if edge_distance <= radius and edge_distance < best_edge_distance:
+				best = actor
+				best_edge_distance = edge_distance
 
 	return best
+
+
+func _get_enemy_search_groups() -> Array:
+	match team:
+		GameCatalog.TEAM_PLAYER:
+			return ["team_enemy", "team_neutral"]
+		GameCatalog.TEAM_ENEMY:
+			return ["team_player", "team_neutral"]
+		GameCatalog.TEAM_NEUTRAL:
+			return ["team_player", "team_enemy"]
+		_:
+			return ["combat_actor"]
 
 
 func apply_move_speed_multiplier(multiplier: float, duration: float) -> void:
