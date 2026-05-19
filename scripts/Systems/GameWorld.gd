@@ -22,6 +22,10 @@ const PLAYABLE_RECT := Rect2(Vector2(-1400.0, -1400.0), Vector2(2800.0, 2800.0))
 const CAMERA_RECT := Rect2(Vector2(-1580.0, -1500.0), Vector2(3160.0, 3260.0))
 const WORLD_BOUND_THICKNESS := 80.0
 const CAMERA_FOLLOW_OFFSET := Vector2(0.0, 80.0)
+const ENEMY_HERO_START_LEVEL := 2
+const ENEMY_CREEP_UPGRADE_KILLS := 2
+const ENEMY_CREEP_UPGRADE_MAX_LEVEL := 8
+const ENEMY_CREEP_UPGRADE_UNITS := ["line_melee", "line_mage"]
 
 var _actors: Node2D
 var _structures: Node2D
@@ -35,6 +39,7 @@ var _experience: ExperienceSystem
 var _shop: ShopSystem
 var _player_hero: HeroController
 var _enemy_hero: EnemyHeroAi
+var _enemy_hero_definition := {}
 var _hud: InGameHudController
 var _shop_panel: ShopController
 var _selected_actor: Actor
@@ -44,6 +49,8 @@ var _last_player_level := 1
 var _match_ended := false
 var _player_respawn_remaining := 0.0
 var _enemy_respawn_remaining := 0.0
+var _enemy_neutral_kills := 0
+var _enemy_creep_upgrade_levels := {}
 var _order_marker_position := Vector2.ZERO
 var _order_marker_timer := 0.0
 var _order_marker_duration := 0.45
@@ -101,6 +108,7 @@ func _ready() -> void:
 	_spawn_player_hero()
 	_spawn_enemy_hero()
 	_neutral_spawner.spawn_initial_camps()
+	_update_enemy_hero_farm_route()
 	_wave_spawner.start_spawning()
 	_create_ui()
 	_select_actor(_player_hero)
@@ -250,12 +258,45 @@ func _spawn_player_hero() -> void:
 
 
 func _spawn_enemy_hero() -> void:
+	if _enemy_hero_definition.is_empty():
+		_enemy_hero_definition = _choose_enemy_hero_definition()
+
 	_enemy_hero = enemy_hero_scene.instantiate() as EnemyHeroAi
 	_actors.add_child(_enemy_hero)
-	_enemy_hero.configure(GameCatalog.TEAM_ENEMY, GameCatalog.LANE_MIDDLE, GameCatalog.create_enemy_hero_stats())
+	_enemy_hero.configure_enemy_hero(_enemy_hero_definition, ENEMY_HERO_START_LEVEL)
 	_enemy_hero.global_position = _lane_manager.get_hero_spawn(GameCatalog.TEAM_ENEMY)
 	_enemy_hero.objective_position = _lane_manager.get_base_position(GameCatalog.TEAM_PLAYER)
+	_enemy_hero.set_base_navigation(
+		_lane_manager.get_base_position(GameCatalog.TEAM_ENEMY),
+		_lane_manager.get_base_exit_position(GameCatalog.TEAM_ENEMY),
+		_lane_manager.get_base_position(GameCatalog.TEAM_PLAYER),
+		_lane_manager.get_base_exit_position(GameCatalog.TEAM_PLAYER)
+	)
+	_enemy_hero.set_base_navigation_routes(
+		_lane_manager.get_base_exit_route(GameCatalog.TEAM_ENEMY),
+		_lane_manager.get_base_exit_route(GameCatalog.TEAM_PLAYER)
+	)
+	_update_enemy_hero_farm_route()
 	_register_actor(_enemy_hero)
+
+
+func _choose_enemy_hero_definition() -> Dictionary:
+	var heroes := GameCatalog.create_hero_definitions()
+	var hero_ids: Array = heroes.keys()
+	if hero_ids.size() > 1:
+		hero_ids.erase(selected_hero_id)
+
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var hero_id := String(hero_ids[rng.randi_range(0, hero_ids.size() - 1)])
+	return heroes.get(hero_id, heroes[GameCatalog.DEFAULT_HERO_ID])
+
+
+func _update_enemy_hero_farm_route() -> void:
+	if _enemy_hero == null or not is_instance_valid(_enemy_hero) or _neutral_spawner == null:
+		return
+
+	_enemy_hero.set_farm_positions(_neutral_spawner.get_camp_positions())
 
 
 func _create_ui() -> void:
@@ -292,6 +333,9 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 	if _is_player_hero_in_experience_range(victim):
 		_experience.add_experience(int(victim.stats.get("experience_reward", 0)))
 
+	if _is_enemy_hero_neutral_kill(killer, victim):
+		_grant_enemy_creep_upgrade_progress()
+
 	if victim == _selected_actor:
 		_select_actor(null)
 
@@ -307,9 +351,14 @@ func _on_actor_died(victim: Actor, killer: Actor) -> void:
 		_start_enemy_respawn()
 
 
-func _on_unit_upgraded(unit_id: String, level: int) -> void:
-	_wave_spawner.set_unit_upgrade_level(unit_id, level)
-	_apply_upgrade_to_live_lane_units(unit_id, level)
+func _on_unit_upgraded(upgrade_id: String, level: int) -> void:
+	_wave_spawner.set_unit_upgrade_level(upgrade_id, level)
+
+	var unit_id := _get_upgrade_target_unit_id(upgrade_id)
+	if unit_id.is_empty():
+		return
+
+	_apply_upgrade_to_live_lane_units(unit_id)
 
 
 func _on_player_experience_changed(level: int, _experience_value: int, _required_experience: int) -> void:
@@ -320,22 +369,36 @@ func _on_player_experience_changed(level: int, _experience_value: int, _required
 	_last_player_level = level
 
 
-func _apply_upgrade_to_live_lane_units(unit_id: String, level: int) -> void:
+func _apply_upgrade_to_live_lane_units(unit_id: String) -> void:
+	_apply_upgrade_to_live_lane_units_for_team(unit_id, GameCatalog.TEAM_PLAYER)
+
+
+func _apply_upgrade_to_live_lane_units_for_team(unit_id: String, team: String) -> void:
 	if _actors == null or _wave_spawner == null:
 		return
 
-	var upgraded_stats := _wave_spawner.create_upgraded_stats(unit_id, GameCatalog.TEAM_PLAYER)
+	var upgraded_stats := _wave_spawner.create_upgraded_stats(unit_id, team)
 	if upgraded_stats.is_empty():
 		return
 
+	var upgrade_level := _wave_spawner.get_effective_unit_upgrade_level(unit_id, team)
 	for child in _actors.get_children():
 		var lane_unit := child as LaneUnit
 		if lane_unit == null or not is_instance_valid(lane_unit) or not lane_unit.is_alive():
 			continue
-		if lane_unit.team != GameCatalog.TEAM_PLAYER or lane_unit.unit_id != unit_id:
+		if lane_unit.team != team or lane_unit.unit_id != unit_id:
 			continue
 
-		lane_unit.apply_upgrade_level(level, upgraded_stats)
+		lane_unit.apply_upgrade_level(upgrade_level, upgraded_stats)
+
+
+func _get_upgrade_target_unit_id(upgrade_id: String) -> String:
+	var definitions := GameCatalog.create_shop_upgrade_definitions()
+	if not definitions.has(upgrade_id):
+		return ""
+
+	var definition: Dictionary = definitions[upgrade_id]
+	return String(definition.get("unit_id", upgrade_id))
 
 
 func _grant_player_ability_points(amount: int) -> void:
@@ -385,6 +448,44 @@ func _is_player_hero_in_experience_range(victim: Actor) -> bool:
 		and _player_hero.is_alive()
 		and _player_hero.global_position.distance_to(victim.global_position) <= player_experience_radius
 	)
+
+
+func _is_enemy_hero_neutral_kill(killer: Actor, victim: Actor) -> bool:
+	return (
+		killer != null
+		and victim is NeutralUnit
+		and _enemy_hero != null
+		and is_instance_valid(_enemy_hero)
+		and killer == _enemy_hero
+	)
+
+
+func _grant_enemy_creep_upgrade_progress() -> void:
+	_enemy_neutral_kills += 1
+	if _enemy_neutral_kills % ENEMY_CREEP_UPGRADE_KILLS != 0:
+		return
+
+	var unit_id := _enemy_creep_upgrade_target()
+	var next_level := mini(
+		int(_enemy_creep_upgrade_levels.get(unit_id, 0)) + 1,
+		ENEMY_CREEP_UPGRADE_MAX_LEVEL
+	)
+	_enemy_creep_upgrade_levels[unit_id] = next_level
+	_wave_spawner.set_team_unit_upgrade_level(GameCatalog.TEAM_ENEMY, unit_id, next_level)
+	_apply_upgrade_to_live_lane_units_for_team(unit_id, GameCatalog.TEAM_ENEMY)
+
+
+func _enemy_creep_upgrade_target() -> String:
+	var best_unit_id := String(ENEMY_CREEP_UPGRADE_UNITS[0])
+	var best_level := INF
+	for unit_id_value in ENEMY_CREEP_UPGRADE_UNITS:
+		var unit_id := String(unit_id_value)
+		var level := int(_enemy_creep_upgrade_levels.get(unit_id, 0))
+		if level < best_level:
+			best_level = level
+			best_unit_id = unit_id
+
+	return best_unit_id
 
 
 func _toggle_shop() -> void:

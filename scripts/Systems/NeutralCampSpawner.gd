@@ -55,6 +55,14 @@ func respawn_empty_camps() -> void:
 			_spawn_camp(i)
 
 
+func get_camp_positions() -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	for camp in _camps:
+		positions.append(camp.get("center", Vector2.ZERO))
+
+	return positions
+
+
 func _register_camp(center: Vector2, unit_ids: Array[String]) -> void:
 	_camps.append({
 		"center": center,

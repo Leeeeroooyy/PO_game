@@ -22,6 +22,35 @@ func get_hero_spawn(team: String) -> Vector2:
 	return base_position + Vector2(145.0, -95.0) if team == GameCatalog.TEAM_PLAYER else base_position + Vector2(-145.0, 95.0)
 
 
+func get_base_exit_position(team: String) -> Vector2:
+	return _player_base_gate_position() if team == GameCatalog.TEAM_PLAYER else -_player_base_gate_position()
+
+
+func get_base_exit_route(team: String) -> Array[Vector2]:
+	var gate := get_base_exit_position(team)
+	var outward := _base_gate_outward_direction(team)
+	var route: Array[Vector2] = [
+		gate - outward * 115.0,
+		gate,
+		gate + outward * 150.0,
+	]
+
+	var middle_path := get_lane_path(team, GameCatalog.LANE_MIDDLE)
+	if middle_path.size() > 2:
+		route.append(middle_path[2])
+
+	return route
+
+
+func _player_base_gate_position() -> Vector2:
+	return Vector2(-1020.0, 960.0)
+
+
+func _base_gate_outward_direction(team: String) -> Vector2:
+	var player_direction := Vector2(1.0, -1.0).normalized()
+	return player_direction if team == GameCatalog.TEAM_PLAYER else -player_direction
+
+
 func get_spawn_position(team: String, lane: String) -> Vector2:
 	var path := get_lane_path(team, lane)
 	if path.size() < 2:

@@ -26,6 +26,7 @@ const UPGRADE_MOVE_SPEED_BONUS_PER_LEVEL := 0.02
 const UPGRADE_ATTACK_SPEED_BONUS_PER_LEVEL := 0.04
 
 var _upgrade_levels := {}
+var _enemy_upgrade_levels := {}
 var _actor_parent: Node2D
 var _lane_unit_scene: PackedScene
 var _lane_manager: LaneManager
@@ -82,6 +83,24 @@ func set_unit_upgrade_level(unit_id: String, level: int) -> void:
 
 func get_unit_upgrade_level(unit_id: String) -> int:
 	return int(_upgrade_levels.get(unit_id, 0))
+
+
+func set_team_unit_upgrade_level(team: String, unit_id: String, level: int) -> void:
+	if team == GameCatalog.TEAM_ENEMY:
+		_enemy_upgrade_levels[unit_id] = level
+	else:
+		set_unit_upgrade_level(unit_id, level)
+
+
+func get_team_unit_upgrade_level(team: String, unit_id: String) -> int:
+	if team == GameCatalog.TEAM_ENEMY:
+		return int(_enemy_upgrade_levels.get(unit_id, 0))
+
+	return get_unit_upgrade_level(unit_id)
+
+
+func get_effective_unit_upgrade_level(unit_id: String, team: String = GameCatalog.TEAM_PLAYER) -> int:
+	return _get_effective_upgrade_level(unit_id, team)
 
 
 func create_upgraded_stats(unit_id: String, team: String = GameCatalog.TEAM_PLAYER) -> Dictionary:
@@ -253,7 +272,21 @@ func _get_unit_definitions() -> Dictionary:
 
 
 func _get_effective_upgrade_level(unit_id: String, team: String) -> int:
+	if team == GameCatalog.TEAM_ENEMY:
+		return get_team_unit_upgrade_level(team, unit_id)
 	if team != GameCatalog.TEAM_PLAYER:
 		return 0
 
-	return get_unit_upgrade_level(unit_id)
+	var effective_level := get_unit_upgrade_level(unit_id)
+	for definition_value in GameCatalog.create_shop_upgrade_definitions().values():
+		var definition: Dictionary = definition_value
+		if String(definition.get("unit_id", "")) != unit_id:
+			continue
+
+		var upgrade_id := String(definition.get("id", ""))
+		if upgrade_id.is_empty() or upgrade_id == unit_id:
+			continue
+
+		effective_level += get_unit_upgrade_level(upgrade_id)
+
+	return effective_level

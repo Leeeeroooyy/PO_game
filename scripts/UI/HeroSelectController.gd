@@ -7,12 +7,13 @@ signal back_requested
 const HeroPortraitViewScript := preload("res://scripts/UI/HeroPortraitView.gd")
 const MenuBackdropScript := preload("res://scripts/UI/MenuBackdrop.gd")
 
-const CARD_SIZE := Vector2(250.0, 330.0)
-const CARD_SPACING := 210.0
+const CARD_SIZE := Vector2(218.0, 292.0)
+const CARD_SPACING := 14
 
 var _heroes: Array[Dictionary] = []
 var _selected_index := 0
 var _carousel_layer: Control
+var _card_grid: GridContainer
 var _card_nodes: Array[Button] = []
 var _name_label: Label
 var _description_label: Label
@@ -121,50 +122,32 @@ func _create_carousel_panel() -> Control:
 	panel.custom_minimum_size = Vector2(560.0, 0.0)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.056, 0.054, 0.88), Color(0.50, 0.68, 0.48, 0.40)))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.056, 0.054, 0.96), Color(0.50, 0.68, 0.48, 0.48)))
 
-	var stack := Control.new()
-	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_child(stack)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	panel.add_child(margin)
 
-	_carousel_layer = Control.new()
-	_carousel_layer.anchor_right = 1.0
-	_carousel_layer.anchor_bottom = 1.0
-	_carousel_layer.offset_left = 70.0
-	_carousel_layer.offset_right = -70.0
-	_carousel_layer.offset_top = 18.0
-	_carousel_layer.offset_bottom = -18.0
-	stack.add_child(_carousel_layer)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(scroll)
 
-	var left_button := _arrow_button("<")
-	left_button.anchor_left = 0.0
-	left_button.anchor_right = 0.0
-	left_button.anchor_top = 0.5
-	left_button.anchor_bottom = 0.5
-	left_button.offset_left = 18.0
-	left_button.offset_right = 62.0
-	left_button.offset_top = -26.0
-	left_button.offset_bottom = 26.0
-	left_button.pressed.connect(func() -> void: _move_selection(-1))
-	stack.add_child(left_button)
-
-	var right_button := _arrow_button(">")
-	right_button.anchor_left = 1.0
-	right_button.anchor_right = 1.0
-	right_button.anchor_top = 0.5
-	right_button.anchor_bottom = 0.5
-	right_button.offset_left = -62.0
-	right_button.offset_right = -18.0
-	right_button.offset_top = -26.0
-	right_button.offset_bottom = 26.0
-	right_button.pressed.connect(func() -> void: _move_selection(1))
-	stack.add_child(right_button)
+	_card_grid = GridContainer.new()
+	_card_grid.columns = 2
+	_card_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_card_grid.add_theme_constant_override("h_separation", CARD_SPACING)
+	_card_grid.add_theme_constant_override("v_separation", CARD_SPACING)
+	scroll.add_child(_card_grid)
+	_carousel_layer = _card_grid
 
 	for i in range(_heroes.size()):
 		var card: Button = _create_hero_card(_heroes[i], i)
 		_card_nodes.append(card)
-		_carousel_layer.add_child(card)
+		_card_grid.add_child(card)
 
 	return panel
 
@@ -174,7 +157,7 @@ func _create_details_panel() -> Control:
 	panel.custom_minimum_size = Vector2(460.0, 0.0)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.050, 0.055, 0.92), Color(0.78, 0.58, 0.30, 0.42)))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.050, 0.055, 1.0), Color(0.78, 0.58, 0.30, 0.58)))
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 18)
@@ -270,14 +253,6 @@ func _create_hero_card(hero: Dictionary, index: int) -> Button:
 	return card
 
 
-func _move_selection(direction: int) -> void:
-	if _heroes.is_empty():
-		return
-
-	_selected_index = wrapi(_selected_index + direction, 0, _heroes.size())
-	_update_selection(true)
-
-
 func _select_card(index: int) -> void:
 	if index == _selected_index:
 		_confirm_selected_hero()
@@ -313,42 +288,26 @@ func _layout_cards(animate: bool) -> void:
 	if _carousel_layer == null or _card_nodes.is_empty():
 		return
 
-	var center: Vector2 = _carousel_layer.size * 0.5
+	if _card_grid != null:
+		_card_grid.columns = maxi(1, int(floor((_carousel_layer.size.x + float(CARD_SPACING)) / (CARD_SIZE.x + float(CARD_SPACING)))))
+
 	for i in range(_card_nodes.size()):
 		var card: Button = _card_nodes[i]
-		var rel: int = _relative_index(i)
-		var abs_rel: int = absi(rel)
-		card.visible = abs_rel <= 2
-		card.disabled = abs_rel > 2
-		if not card.visible:
-			continue
-
-		var target_position: Vector2 = center - CARD_SIZE * 0.5 + Vector2(float(rel) * CARD_SPACING, 0.0)
-		var target_scale: Vector2 = Vector2.ONE * (1.0 if rel == 0 else (0.82 if abs_rel == 1 else 0.66))
-		var alpha: float = 1.0 if rel == 0 else (0.72 if abs_rel == 1 else 0.24)
-		card.z_index = 10 - abs_rel
+		var hero_id := String(_heroes[i].get("id", GameCatalog.DEFAULT_HERO_ID))
+		var selected := i == _selected_index
+		card.visible = true
+		card.disabled = false
+		card.scale = Vector2.ONE
+		card.modulate = Color.WHITE
+		card.z_index = 0
+		card.add_theme_stylebox_override("normal", _card_style(
+			Color(0.075, 0.094, 0.086, 1.0) if selected else Color(0.065, 0.080, 0.074, 0.98),
+			_hero_color(hero_id).lightened(0.18) if selected else _hero_color(hero_id).darkened(0.22)
+		))
 
 		if animate:
 			var tween: Tween = create_tween()
-			tween.set_parallel(true)
-			tween.tween_property(card, "position", target_position, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			tween.tween_property(card, "scale", target_scale, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			tween.tween_property(card, "modulate", Color(1.0, 1.0, 1.0, alpha), 0.18)
-		else:
-			card.position = target_position
-			card.scale = target_scale
-			card.modulate = Color(1.0, 1.0, 1.0, alpha)
-
-
-func _relative_index(index: int) -> int:
-	var count: int = _heroes.size()
-	var rel: int = index - _selected_index
-	if rel > count / 2:
-		rel -= count
-	elif rel < -count / 2:
-		rel += count
-
-	return rel
+			tween.tween_property(card, "modulate", Color.WHITE, 0.12)
 
 
 func _stats_text(hero: Dictionary) -> String:
@@ -491,7 +450,7 @@ func _details_text() -> RichTextLabel:
 func _section(title: String, content: Control) -> Control:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.035, 0.041, 0.042, 0.76), Color(0.36, 0.46, 0.36, 0.34)))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.035, 0.041, 0.042, 1.0), Color(0.36, 0.46, 0.36, 0.46)))
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 12)
@@ -522,13 +481,6 @@ func _small_button(text_value: String) -> Button:
 	button.add_theme_stylebox_override("normal", _button_style(Color(0.12, 0.15, 0.14), Color(0.52, 0.60, 0.44)))
 	button.add_theme_stylebox_override("hover", _button_style(Color(0.18, 0.22, 0.19), Color(0.92, 0.72, 0.36)))
 	button.add_theme_stylebox_override("pressed", _button_style(Color(0.08, 0.10, 0.095), Color(0.92, 0.72, 0.36)))
-	return button
-
-
-func _arrow_button(text_value: String) -> Button:
-	var button: Button = _small_button(text_value)
-	button.custom_minimum_size = Vector2(44.0, 52.0)
-	button.add_theme_font_size_override("font_size", 24)
 	return button
 
 

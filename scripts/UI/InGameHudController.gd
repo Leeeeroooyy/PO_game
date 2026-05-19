@@ -449,7 +449,8 @@ func _update_portrait_for_actor(actor: Actor) -> void:
 		var hero := actor as HeroController
 		_portrait_view.set_actor_portrait("hero", hero.hero_id, hero.get_hero_color())
 	elif actor is EnemyHeroAi:
-		_portrait_view.set_actor_portrait("enemy_hero", "enemy_hero", _portrait_team_color(actor))
+		var enemy_hero := actor as EnemyHeroAi
+		_portrait_view.set_actor_portrait("hero", enemy_hero.hero_id, enemy_hero.get_hero_color())
 	elif actor is LaneUnit:
 		_portrait_view.set_actor_portrait("lane_unit", (actor as LaneUnit).unit_id, _portrait_team_color(actor))
 	elif actor is NeutralUnit:
@@ -747,6 +748,8 @@ func _selected_kind(actor: Actor) -> String:
 func _selected_name(actor: Actor) -> String:
 	if actor is HeroController:
 		return (actor as HeroController).get_display_name()
+	if actor is EnemyHeroAi:
+		return (actor as EnemyHeroAi).get_display_name()
 	if actor is LaneUnit:
 		var lane_unit := actor as LaneUnit
 		return "%s Lv %d" % [GameCatalog.unit_display_name(lane_unit.unit_id), lane_unit.upgrade_level]
