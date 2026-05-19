@@ -2,9 +2,25 @@ class_name UnitArt
 extends RefCounted
 
 const SPRITE_ATLAS: Texture2D = preload("res://assets/sprites/generated/moba_units_atlas_pixel.png")
+const STRUCTURE_ATLAS: Texture2D = preload("res://assets/sprites/generated/moba_towers_atlas_pixel.png")
 const ATLAS_COLUMNS := 4.0
 const ATLAS_ROWS := 3.0
 const USE_SPRITE_ATLAS := true
+const USE_STRUCTURE_ATLAS := true
+const STRUCTURE_SOURCE_RECTS := [
+	[
+		Rect2(86.0, 173.0, 232.0, 301.0),
+		Rect2(387.0, 136.0, 235.0, 342.0),
+		Rect2(714.0, 122.0, 258.0, 357.0),
+		Rect2(1029.0, 140.0, 346.0, 343.0),
+	],
+	[
+		Rect2(71.0, 594.0, 237.0, 319.0),
+		Rect2(377.0, 556.0, 255.0, 362.0),
+		Rect2(704.0, 542.0, 275.0, 381.0),
+		Rect2(1008.0, 567.0, 377.0, 363.0),
+	],
+]
 const WALK_CYCLE_SPEED := 2.6
 const IDLE_CYCLE_SPEED := 0.85
 
@@ -123,6 +139,32 @@ static func draw_companion(canvas: CanvasItem, companion_kind: String, team_colo
 			_draw_companion_wolf(canvas, team_color, radius)
 
 
+static func draw_tower(canvas: CanvasItem, team: String, tier: int, size: Vector2) -> bool:
+	if not USE_STRUCTURE_ATLAS or STRUCTURE_ATLAS == null:
+		return false
+
+	var cell := Vector2i(clampi(tier, 1, 3) - 1, _structure_atlas_row(team))
+	var source := _structure_source_rect(cell)
+	var height := size.y * 1.95
+	return _draw_structure_atlas_sprite(canvas, source, height, size.y * 0.64)
+
+
+static func draw_shrine(canvas: CanvasItem, team: String, size: Vector2) -> bool:
+	if not USE_STRUCTURE_ATLAS or STRUCTURE_ATLAS == null:
+		return false
+
+	var cell := Vector2i(3, _structure_atlas_row(team))
+	var source := _structure_source_rect(cell)
+	var height := size.y * 1.54
+	return _draw_structure_atlas_sprite(canvas, source, height, size.y * 0.58)
+
+
+static func _structure_source_rect(cell: Vector2i) -> Rect2:
+	var row := clampi(cell.y, 0, STRUCTURE_SOURCE_RECTS.size() - 1)
+	var column := clampi(cell.x, 0, STRUCTURE_SOURCE_RECTS[row].size() - 1)
+	return STRUCTURE_SOURCE_RECTS[row][column]
+
+
 static func _draw_atlas_sprite(canvas: CanvasItem, cell: Vector2i, radius: float, height_multiplier: float, width_multiplier: float, tint: Color = Color.WHITE, profile := "default") -> bool:
 	if not USE_SPRITE_ATLAS or SPRITE_ATLAS == null:
 		return false
@@ -139,6 +181,23 @@ static func _draw_atlas_sprite(canvas: CanvasItem, cell: Vector2i, radius: float
 	canvas.draw_texture_rect_region(SPRITE_ATLAS, destination, source, tint)
 	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	return true
+
+
+static func _draw_structure_atlas_sprite(canvas: CanvasItem, source: Rect2, height: float, bottom_y: float) -> bool:
+	if not USE_STRUCTURE_ATLAS or STRUCTURE_ATLAS == null:
+		return false
+
+	if source.size.x <= 0.0 or source.size.y <= 0.0:
+		return false
+
+	var draw_size := Vector2(height * source.size.x / source.size.y, height)
+	var destination := Rect2(Vector2(-draw_size.x * 0.5, bottom_y - draw_size.y), draw_size)
+	canvas.draw_texture_rect_region(STRUCTURE_ATLAS, _snap_rect(destination), source)
+	return true
+
+
+static func _structure_atlas_row(team: String) -> int:
+	return 1 if team == GameCatalog.TEAM_ENEMY else 0
 
 
 static func _get_sprite_animation(canvas: CanvasItem, radius: float, cell: Vector2i, profile: String) -> Dictionary:

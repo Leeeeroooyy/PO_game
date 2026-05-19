@@ -2,8 +2,23 @@ class_name HeroPortraitView
 extends Control
 
 const SPRITE_ATLAS: Texture2D = preload("res://assets/sprites/generated/moba_units_atlas_pixel.png")
+const STRUCTURE_ATLAS: Texture2D = preload("res://assets/sprites/generated/moba_towers_atlas_pixel.png")
 const ATLAS_COLUMNS := 4.0
 const ATLAS_ROWS := 3.0
+const STRUCTURE_SOURCE_RECTS := [
+	[
+		Rect2(86.0, 173.0, 232.0, 301.0),
+		Rect2(387.0, 136.0, 235.0, 342.0),
+		Rect2(714.0, 122.0, 258.0, 357.0),
+		Rect2(1029.0, 140.0, 346.0, 343.0),
+	],
+	[
+		Rect2(71.0, 594.0, 237.0, 319.0),
+		Rect2(377.0, 556.0, 255.0, 362.0),
+		Rect2(704.0, 542.0, 275.0, 381.0),
+		Rect2(1008.0, 567.0, 377.0, 363.0),
+	],
+]
 
 var hero_id := GameCatalog.DEFAULT_HERO_ID
 var hero_color := Color(0.34, 0.78, 0.36)
@@ -40,6 +55,8 @@ func _draw() -> void:
 	var cell := side / 16.0
 	var background := hero_color.darkened(0.56)
 
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.025, 0.025, 0.96))
+	draw_rect(Rect2(Vector2(size.x * 0.04, size.y * 0.04), size * 0.92), background)
 	draw_rect(Rect2(origin, Vector2(side, side)), Color(0.02, 0.025, 0.025, 0.96))
 	_px(origin, cell, 1, 1, 14, 14, background)
 	_px(origin, cell, 2, 2, 12, 12, hero_color.darkened(0.28))
@@ -47,6 +64,9 @@ func _draw() -> void:
 	_px(origin, cell, 1, 13, 14, 2, Color(0.04, 0.03, 0.02, 0.75))
 
 	if portrait_kind == "structure":
+		if _draw_structure_atlas_portrait(origin, side):
+			draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
+			return
 		_draw_structure_portrait(origin, cell)
 		draw_rect(Rect2(origin, Vector2(side, side)), Color(0.04, 0.035, 0.025), false, maxf(2.0, cell * 0.52))
 		return
@@ -81,6 +101,36 @@ func _draw_atlas_portrait(origin: Vector2, side: float) -> bool:
 	draw_texture_rect_region(SPRITE_ATLAS, destination, source)
 	_draw_portrait_accent(origin, side)
 	return true
+
+
+func _draw_structure_atlas_portrait(origin: Vector2, side: float) -> bool:
+	if STRUCTURE_ATLAS == null:
+		return false
+
+	var atlas_cell := _structure_atlas_cell()
+	var source := _structure_source_rect(atlas_cell)
+	var fit_size := Vector2(side * 0.86, side * 0.86)
+	var scale := minf(fit_size.x / source.size.x, fit_size.y / source.size.y)
+	var draw_size := source.size * scale
+	var destination := Rect2(origin + Vector2((side - draw_size.x) * 0.5, side * 0.92 - draw_size.y), draw_size)
+	draw_texture_rect_region(STRUCTURE_ATLAS, destination, source)
+	_draw_portrait_accent(origin, side)
+	return true
+
+
+func _structure_source_rect(cell: Vector2i) -> Rect2:
+	var row := clampi(cell.y, 0, STRUCTURE_SOURCE_RECTS.size() - 1)
+	var column := clampi(cell.x, 0, STRUCTURE_SOURCE_RECTS[row].size() - 1)
+	return STRUCTURE_SOURCE_RECTS[row][column]
+
+
+func _structure_atlas_cell() -> Vector2i:
+	var row := 1 if hero_color.r > hero_color.g else 0
+	if portrait_id.begins_with("tower_t"):
+		var tier := clampi(int(portrait_id.substr(7)), 1, 3)
+		return Vector2i(tier - 1, row)
+
+	return Vector2i(3, row)
 
 
 func _atlas_cell() -> Vector2i:
@@ -214,7 +264,7 @@ func _draw_ancient_druid(origin: Vector2, cell: float) -> void:
 func _draw_structure_portrait(origin: Vector2, cell: float) -> void:
 	var stone := hero_color.darkened(0.18)
 	var trim := hero_color.lightened(0.16)
-	if portrait_id == "base":
+	if portrait_id == "base" or portrait_id == "shrine":
 		_px(origin, cell, 4, 4, 8, 8, stone)
 		_px(origin, cell, 3, 8, 10, 4, stone.darkened(0.16))
 		_px(origin, cell, 5, 2, 6, 3, trim)

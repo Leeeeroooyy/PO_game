@@ -687,11 +687,9 @@ func _find_actor_at(position: Vector2) -> Actor:
 
 func _get_actor_pick_radius(actor: Actor) -> float:
 	if actor is BaseStructure:
-		var base := actor as BaseStructure
-		return maxf(base.size.length() * 0.42, 56.0)
+		return actor.get_pick_radius()
 	if actor is TowerStructure:
-		var tower := actor as TowerStructure
-		return maxf(tower.size.length() * 0.42, 34.0)
+		return actor.get_pick_radius()
 
 	return actor.get_pick_radius()
 

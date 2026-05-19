@@ -4,11 +4,16 @@ extends Control
 signal shop_requested
 
 const HeroPortraitViewScript := preload("res://scripts/UI/HeroPortraitView.gd")
+const HUD_BOTTOM_FRAME: Texture2D = preload("res://assets/ui/hud_bottom_frame.png")
+const HUD_TIMER_FRAME: Texture2D = preload("res://assets/ui/hud_timer_frame.png")
 
-var _gold_label: Label
+var _gold_label: Button
 var _experience_label: Label
 var _health_label: Label
+var _health_progress: ProgressBar
+var _experience_progress: ProgressBar
 var _hero_label: Label
+var _portrait_name_label: Label
 var _combat_stats_label: Label
 var _utility_stats_label: Label
 var _wave_timer_label: Label
@@ -45,104 +50,109 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var top_timer := PanelContainer.new()
-	top_timer.anchor_left = 0.5
-	top_timer.anchor_right = 0.5
-	top_timer.anchor_top = 0.0
-	top_timer.anchor_bottom = 0.0
-	top_timer.offset_left = -98.0
-	top_timer.offset_right = 98.0
-	top_timer.offset_top = 14.0
-	top_timer.offset_bottom = 52.0
-	top_timer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top_timer := _create_match_bar()
 	add_child(top_timer)
 
 	_wave_timer_label = Label.new()
 	_wave_timer_label.text = "Wave 1 in 30s"
 	_wave_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_wave_timer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_wave_timer_label.add_theme_font_size_override("font_size", 18)
+	_wave_timer_label.add_theme_font_size_override("font_size", 16)
+	_wave_timer_label.add_theme_color_override("font_color", Color(0.94, 0.88, 0.72))
+	_wave_timer_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
+	_wave_timer_label.add_theme_constant_override("shadow_offset_x", 1)
+	_wave_timer_label.add_theme_constant_override("shadow_offset_y", 1)
 	_wave_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top_timer.add_child(_wave_timer_label)
+	top_timer.get_node("Content").add_child(_wave_timer_label)
 
-	var bottom_bar := PanelContainer.new()
+	var bottom_bar := Control.new()
 	bottom_bar.anchor_left = 0.0
 	bottom_bar.anchor_right = 1.0
 	bottom_bar.anchor_top = 1.0
 	bottom_bar.anchor_bottom = 1.0
-	bottom_bar.offset_left = 18.0
-	bottom_bar.offset_right = -18.0
-	bottom_bar.offset_top = -188.0
-	bottom_bar.offset_bottom = -12.0
+	bottom_bar.offset_left = 0.0
+	bottom_bar.offset_right = 0.0
+	bottom_bar.offset_top = -170.0
+	bottom_bar.offset_bottom = -10.0
 	bottom_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bottom_bar)
-
-	var row := HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_theme_constant_override("separation", 14)
-	bottom_bar.add_child(row)
+	_add_texture_backdrop(bottom_bar, HUD_BOTTOM_FRAME)
 
 	var minimap := MinimapView.new()
-	row.add_child(minimap)
+	minimap.custom_minimum_size = Vector2(112.0, 112.0)
+	minimap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	minimap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bottom_bar.add_child(minimap)
+	_place_control(minimap, Rect2(31.0, 27.0, 111.0, 111.0))
 
-	row.add_child(_create_portrait_panel())
+	var portrait_panel := _create_portrait_panel()
+	bottom_bar.add_child(portrait_panel)
+	_place_control(portrait_panel, Rect2(184.0, 13.0, 118.0, 136.0))
 
-	var info_panel := VBoxContainer.new()
-	info_panel.custom_minimum_size = Vector2(230.0, 162.0)
-	info_panel.add_theme_constant_override("separation", 4)
-	row.add_child(info_panel)
-
-	_hero_label = _create_hud_label("Hero")
-	_hero_label.add_theme_font_size_override("font_size", 20)
-	info_panel.add_child(_hero_label)
+	_health_progress = _create_status_bar(Color(0.12, 0.72, 0.16), Color(0.05, 0.18, 0.05))
+	bottom_bar.add_child(_health_progress)
+	_place_control(_health_progress, Rect2(353.0, 47.0, 187.0, 10.0))
 
 	_health_label = _create_hud_label("HP")
+	_health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_health_label.add_theme_font_size_override("font_size", 10)
+	_health_label.z_index = 30
+	bottom_bar.add_child(_health_label)
+	_place_control(_health_label, Rect2(353.0, 45.0, 187.0, 14.0))
+
+	_experience_progress = _create_status_bar(Color(0.20, 0.42, 0.92), Color(0.05, 0.08, 0.18))
+	bottom_bar.add_child(_experience_progress)
+	_place_control(_experience_progress, Rect2(353.0, 96.0, 187.0, 10.0))
+
+	_experience_label = _create_hud_label("Hero Lv")
+	_experience_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_experience_label.add_theme_font_size_override("font_size", 10)
+	_experience_label.z_index = 30
+	bottom_bar.add_child(_experience_label)
+	_place_control(_experience_label, Rect2(353.0, 94.0, 187.0, 14.0))
+
+	_skill_points_label = _create_hud_label("Ability points: 0")
+	_skill_points_label.z_index = 30
+	bottom_bar.add_child(_skill_points_label)
+	_place_control(_skill_points_label, Rect2(695.0, 116.0, 342.0, 18.0))
+
 	_combat_stats_label = _create_hud_label("DMG")
 	_utility_stats_label = _create_hud_label("SPD")
-	_gold_label = _create_hud_label("Gold")
-	_experience_label = _create_hud_label("Hero Lv")
-	_skill_points_label = _create_hud_label("Skill pts: 0")
-	info_panel.add_child(_health_label)
-	info_panel.add_child(_combat_stats_label)
-	info_panel.add_child(_utility_stats_label)
-	info_panel.add_child(_experience_label)
-	info_panel.add_child(_skill_points_label)
-	info_panel.add_child(_gold_label)
-
-	var ability_offset := Control.new()
-	ability_offset.custom_minimum_size = Vector2(28.0, 1.0)
-	row.add_child(ability_offset)
-
-	var ability_row := HBoxContainer.new()
-	ability_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	ability_row.add_theme_constant_override("separation", 10)
-	row.add_child(ability_row)
+	_combat_stats_label.custom_minimum_size = Vector2(78.0, 42.0)
+	_utility_stats_label.custom_minimum_size = Vector2(78.0, 42.0)
+	_combat_stats_label.clip_text = false
+	_utility_stats_label.clip_text = false
+	_combat_stats_label.z_index = 30
+	_utility_stats_label.z_index = 30
+	_combat_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_utility_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	bottom_bar.add_child(_combat_stats_label)
+	bottom_bar.add_child(_utility_stats_label)
+	_place_control(_combat_stats_label, Rect2(591.0, 31.0, 78.0, 42.0))
+	_place_control(_utility_stats_label, Rect2(591.0, 88.0, 78.0, 42.0))
 
 	for i in range(4):
-		ability_row.add_child(_create_ability_slot(i + 1))
-
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-
-	var right_panel := VBoxContainer.new()
-	right_panel.custom_minimum_size = Vector2(170.0, 116.0)
-	right_panel.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_panel.add_theme_constant_override("separation", 10)
-	row.add_child(right_panel)
+		var ability_slot := _create_ability_slot(i + 1)
+		bottom_bar.add_child(ability_slot)
+		_place_control(ability_slot, Rect2(695.0 + float(i) * 88.0, 31.0, 78.0, 78.0))
 
 	var shop_button := Button.new()
-	shop_button.text = "SHOP  B"
-	shop_button.custom_minimum_size = Vector2(150.0, 44.0)
+	shop_button.text = "0"
+	shop_button.custom_minimum_size = Vector2(102.0, 40.0)
+	shop_button.add_theme_stylebox_override("normal", _transparent_style())
+	shop_button.add_theme_stylebox_override("hover", _transparent_style())
+	shop_button.add_theme_stylebox_override("pressed", _transparent_style())
+	shop_button.add_theme_font_size_override("font_size", 20)
+	shop_button.add_theme_color_override("font_color", Color(1.0, 0.86, 0.30))
+	shop_button.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.48))
+	shop_button.add_theme_color_override("font_pressed_color", Color(0.92, 0.72, 0.18))
+	shop_button.z_index = 30
 	shop_button.pressed.connect(func() -> void: shop_requested.emit())
-	right_panel.add_child(shop_button)
+	bottom_bar.add_child(shop_button)
+	_place_control(shop_button, Rect2(1058.0, 58.0, 102.0, 40.0))
+	_gold_label = shop_button
 
-	var hint := Label.new()
-	hint.text = "1-4 abilities"
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.modulate = Color(0.86, 0.78, 0.58)
-	right_panel.add_child(hint)
+	_add_texture_overlay(bottom_bar, HUD_BOTTOM_FRAME, 20)
 
 	_create_death_overlay()
 	_create_ability_tooltip_panel()
@@ -190,8 +200,12 @@ func show_selected_actor(actor: Actor) -> void:
 	if _selected_actor == null or not is_instance_valid(_selected_actor):
 		if _hero_label != null:
 			_hero_label.text = "Selected: none"
+		if _portrait_name_label != null:
+			_portrait_name_label.text = _hero.get_display_name() if _hero != null and is_instance_valid(_hero) else "None"
 		if _health_label != null:
 			_health_label.text = "HP: -"
+		if _health_progress != null:
+			_health_progress.value = 0.0
 		_update_selected_stats(null)
 		_update_portrait()
 		return
@@ -201,6 +215,8 @@ func show_selected_actor(actor: Actor) -> void:
 
 	if _hero_label != null:
 		_hero_label.text = "%s: %s" % [_selected_kind(_selected_actor), _selected_name(_selected_actor)]
+	if _portrait_name_label != null:
+		_portrait_name_label.text = _selected_name(_selected_actor)
 	_update_portrait_for_actor(_selected_actor)
 	_on_selected_health_changed(_selected_actor.health, float(_selected_actor.stats.get("max_health", 0.0)))
 	_update_selected_stats(_selected_actor)
@@ -213,6 +229,8 @@ func set_respawn_time(remaining: float) -> void:
 		_death_timer_label.text = "Respawn: %ds" % ceili(maxf(0.0, remaining))
 	if remaining > 0.0 and _health_label != null and _selected_actor == _hero:
 		_health_label.text = "HP: dead"
+		if _health_progress != null:
+			_health_progress.value = 0.0
 
 
 func set_wave_timer(remaining: float, next_wave_number: int, has_catapult := false) -> void:
@@ -225,18 +243,99 @@ func set_wave_timer(remaining: float, next_wave_number: int, has_catapult := fal
 		_wave_timer_label.text = text
 
 
+func _create_match_bar() -> Control:
+	var panel := Control.new()
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 0.0
+	panel.anchor_bottom = 0.0
+	panel.offset_left = -165.0
+	panel.offset_right = 165.0
+	panel.offset_top = 0.0
+	panel.offset_bottom = 52.0
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_add_texture_backdrop(panel, HUD_TIMER_FRAME)
+
+	var content := HBoxContainer.new()
+	content.name = "Content"
+	content.anchor_right = 1.0
+	content.anchor_bottom = 1.0
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(content)
+
+	return panel
+
+
+func _add_texture_backdrop(parent: Control, texture: Texture2D) -> TextureRect:
+	var backdrop := TextureRect.new()
+	backdrop.texture = texture
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	backdrop.stretch_mode = TextureRect.STRETCH_SCALE
+	parent.add_child(backdrop)
+	parent.move_child(backdrop, 0)
+	return backdrop
+
+
+func _add_texture_overlay(parent: Control, texture: Texture2D, z_layer: int) -> TextureRect:
+	var overlay := TextureRect.new()
+	overlay.texture = texture
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	overlay.z_index = z_layer
+	parent.add_child(overlay)
+	return overlay
+
+
+func _place_control(control: Control, rect: Rect2) -> void:
+	control.anchor_left = 0.0
+	control.anchor_right = 0.0
+	control.anchor_top = 0.0
+	control.anchor_bottom = 0.0
+	control.offset_left = rect.position.x
+	control.offset_top = rect.position.y
+	control.offset_right = rect.position.x + rect.size.x
+	control.offset_bottom = rect.position.y + rect.size.y
+	control.custom_minimum_size = rect.size
+
+
 func _create_portrait_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(104.0, 104.0)
+	panel.custom_minimum_size = Vector2(118.0, 136.0)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.tooltip_text = "Hero portrait"
+	panel.add_theme_stylebox_override("panel", _transparent_style())
 
-	var stack := CenterContainer.new()
-	panel.add_child(stack)
+	var content := Control.new()
+	content.anchor_right = 1.0
+	content.anchor_bottom = 1.0
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(content)
+
+	_portrait_name_label = Label.new()
+	_portrait_name_label.text = "Hero"
+	_portrait_name_label.custom_minimum_size = Vector2(108.0, 18.0)
+	_portrait_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_portrait_name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_portrait_name_label.clip_text = true
+	_portrait_name_label.add_theme_font_size_override("font_size", 12)
+	_portrait_name_label.add_theme_color_override("font_color", Color(0.96, 0.88, 0.66))
+	_portrait_name_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
+	_portrait_name_label.add_theme_constant_override("shadow_offset_x", 1)
+	_portrait_name_label.add_theme_constant_override("shadow_offset_y", 1)
+	_portrait_name_label.z_index = 30
+	content.add_child(_portrait_name_label)
+	_place_control(_portrait_name_label, Rect2(5.0, 3.0, 108.0, 18.0))
 
 	_portrait_view = HeroPortraitViewScript.new() as HeroPortraitView
-	_portrait_view.custom_minimum_size = Vector2(92.0, 92.0)
-	stack.add_child(_portrait_view)
+	_portrait_view.custom_minimum_size = Vector2(110.0, 98.0)
+	_portrait_view.z_index = 0
+	content.add_child(_portrait_view)
+	_place_control(_portrait_view, Rect2(4.0, 29.0, 110.0, 98.0))
 
 	return panel
 
@@ -244,10 +343,75 @@ func _create_portrait_panel() -> Control:
 func _create_hud_label(text_value: String) -> Label:
 	var label := Label.new()
 	label.text = text_value
-	label.custom_minimum_size = Vector2(180.0, 22.0)
+	label.custom_minimum_size = Vector2(180.0, 20.0)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 15)
+	label.clip_text = true
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", Color(0.78, 0.74, 0.64))
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
+	label.add_theme_constant_override("shadow_offset_x", 1)
+	label.add_theme_constant_override("shadow_offset_y", 1)
 	return label
+
+
+func _create_status_bar(fill: Color, background: Color) -> ProgressBar:
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(187.0, 10.0)
+	bar.min_value = 0.0
+	bar.max_value = 1.0
+	bar.value = 1.0
+	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var background_style := _bar_style(background, Color(0.02, 0.022, 0.018, 1.0))
+	var fill_style := _bar_style(fill, fill.lightened(0.22))
+	bar.add_theme_stylebox_override("background", background_style)
+	bar.add_theme_stylebox_override("fill", fill_style)
+	return bar
+
+
+func _bar_style(background: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(0)
+	style.content_margin_left = 0.0
+	style.content_margin_top = 0.0
+	style.content_margin_right = 0.0
+	style.content_margin_bottom = 0.0
+	return style
+
+
+func _panel_style(background: Color, border: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(corner_radius)
+	style.content_margin_left = 6.0
+	style.content_margin_top = 5.0
+	style.content_margin_right = 6.0
+	style.content_margin_bottom = 5.0
+	return style
+
+
+func _slot_style(background: Color, border: Color) -> StyleBoxFlat:
+	var style := _panel_style(background, border, 2, 1)
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	style.shadow_size = 3
+	return style
+
+
+func _transparent_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	style.border_color = Color(0.0, 0.0, 0.0, 0.0)
+	style.set_border_width_all(0)
+	style.content_margin_left = 0.0
+	style.content_margin_top = 0.0
+	style.content_margin_right = 0.0
+	style.content_margin_bottom = 0.0
+	return style
 
 
 func _create_ability_tooltip_panel() -> void:
@@ -262,6 +426,7 @@ func _create_ability_tooltip_panel() -> void:
 	_ability_tooltip_panel.offset_bottom = -178.0
 	_ability_tooltip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ability_tooltip_panel.visible = false
+	_ability_tooltip_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.035, 0.038, 0.038, 0.98), Color(0.62, 0.52, 0.34, 0.94), 2, 2))
 	add_child(_ability_tooltip_panel)
 
 	_ability_tooltip_label = RichTextLabel.new()
@@ -271,6 +436,7 @@ func _create_ability_tooltip_panel() -> void:
 	_ability_tooltip_label.scroll_active = false
 	_ability_tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ability_tooltip_label.add_theme_font_size_override("normal_font_size", 13)
+	_ability_tooltip_label.add_theme_color_override("default_color", Color(0.84, 0.80, 0.70))
 	_ability_tooltip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ability_tooltip_panel.add_child(_ability_tooltip_label)
 
@@ -328,52 +494,68 @@ func _create_death_overlay() -> void:
 
 func _create_ability_slot(number: int) -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(70.0, 70.0)
+	panel.custom_minimum_size = Vector2(78.0, 78.0)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.tooltip_text = "No ability"
+	panel.add_theme_stylebox_override("panel", _transparent_style())
 	panel.mouse_entered.connect(func() -> void: _show_ability_tooltip(number - 1))
 	panel.mouse_exited.connect(func() -> void: _hide_ability_tooltip(number - 1))
 	panel.gui_input.connect(func(event: InputEvent) -> void: _on_ability_slot_input(event, number - 1))
 	_ability_slots.append(panel)
 
 	var slot_root := Control.new()
-	slot_root.custom_minimum_size = Vector2(70.0, 70.0)
+	slot_root.custom_minimum_size = Vector2(78.0, 78.0)
+	slot_root.anchor_right = 1.0
+	slot_root.anchor_bottom = 1.0
 	slot_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(slot_root)
 
-	var box := VBoxContainer.new()
-	box.anchor_right = 1.0
-	box.anchor_bottom = 1.0
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot_root.add_child(box)
-
 	var icon := ColorRect.new()
-	icon.custom_minimum_size = Vector2(44.0, 36.0)
-	icon.color = Color(0.22 + float(number) * 0.04, 0.24, 0.30 + float(number) * 0.05)
+	icon.custom_minimum_size = Vector2(54.0, 56.0)
+	icon.color = Color(0.16 + float(number) * 0.04, 0.19, 0.27 + float(number) * 0.05)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(icon)
+	icon.z_index = 0
+	slot_root.add_child(icon)
+	_place_control(icon, Rect2(9.0, 16.0, 54.0, 56.0))
 
 	var key := Label.new()
 	key.text = str(number)
+	key.anchor_left = 0.0
+	key.anchor_right = 0.0
+	key.anchor_top = 0.0
+	key.anchor_bottom = 0.0
+	key.offset_left = 6.0
+	key.offset_top = 8.0
+	key.offset_right = 22.0
+	key.offset_bottom = 22.0
 	key.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	key.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	key.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	key.add_theme_font_size_override("font_size", 15)
-	box.add_child(key)
+	key.add_theme_font_size_override("font_size", 11)
+	key.add_theme_color_override("font_color", Color(0.96, 0.88, 0.66))
+	key.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.9))
+	key.add_theme_constant_override("shadow_offset_x", 1)
+	key.add_theme_constant_override("shadow_offset_y", 1)
+	key.z_index = 30
+	slot_root.add_child(key)
 
 	var name_label := Label.new()
 	name_label.text = "-"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.clip_text = true
-	name_label.custom_minimum_size = Vector2(64.0, 16.0)
+	name_label.custom_minimum_size = Vector2(58.0, 11.0)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_label.add_theme_font_size_override("font_size", 9)
-	box.add_child(name_label)
+	name_label.visible = false
+	name_label.add_theme_font_size_override("font_size", 7)
+	name_label.add_theme_color_override("font_color", Color(0.74, 0.70, 0.58))
+	slot_root.add_child(name_label)
+	_place_control(name_label, Rect2(10.0, 62.0, 58.0, 11.0))
 	_ability_name_labels.append(name_label)
 
 	var cooldown_label := Label.new()
 	cooldown_label.anchor_right = 1.0
 	cooldown_label.anchor_bottom = 1.0
+	cooldown_label.z_index = 30
 	cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cooldown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	cooldown_label.add_theme_font_size_override("font_size", 24)
@@ -387,40 +569,30 @@ func _create_ability_slot(number: int) -> Control:
 	_ability_cooldown_labels.append(cooldown_label)
 
 	var level_label := Label.new()
-	level_label.anchor_left = 0.0
-	level_label.anchor_right = 1.0
-	level_label.anchor_top = 0.0
-	level_label.anchor_bottom = 1.0
-	level_label.offset_left = 4.0
-	level_label.offset_right = -4.0
-	level_label.offset_bottom = -2.0
-	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	level_label.add_theme_font_size_override("font_size", 10)
+	level_label.add_theme_font_size_override("font_size", 9)
 	level_label.add_theme_color_override("font_color", Color(0.92, 0.86, 0.68))
 	level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_label.z_index = 30
 	slot_root.add_child(level_label)
+	_place_control(level_label, Rect2(9.0, 61.0, 54.0, 13.0))
 	_ability_level_labels.append(level_label)
 
 	var upgrade_label := Label.new()
-	upgrade_label.anchor_left = 0.0
-	upgrade_label.anchor_right = 1.0
-	upgrade_label.anchor_top = 0.0
-	upgrade_label.anchor_bottom = 1.0
-	upgrade_label.offset_left = 4.0
-	upgrade_label.offset_top = 2.0
-	upgrade_label.offset_right = -4.0
-	upgrade_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	upgrade_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	upgrade_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	upgrade_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	upgrade_label.text = "+"
-	upgrade_label.add_theme_font_size_override("font_size", 18)
-	upgrade_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.45))
+	upgrade_label.add_theme_font_size_override("font_size", 17)
+	upgrade_label.add_theme_color_override("font_color", Color(0.82, 1.0, 0.28))
 	upgrade_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
 	upgrade_label.add_theme_constant_override("shadow_offset_x", 1)
 	upgrade_label.add_theme_constant_override("shadow_offset_y", 1)
 	upgrade_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	upgrade_label.visible = false
+	upgrade_label.z_index = 30
 	slot_root.add_child(upgrade_label)
+	_place_control(upgrade_label, Rect2(54.0, 5.0, 20.0, 20.0))
 	_ability_upgrade_labels.append(upgrade_label)
 
 	return panel
@@ -445,6 +617,8 @@ func _update_portrait() -> void:
 	if _hero == null or not is_instance_valid(_hero):
 		return
 
+	if _portrait_name_label != null:
+		_portrait_name_label.text = _hero.get_display_name()
 	if _portrait_view != null:
 		_portrait_view.set_hero(_hero.hero_id, _hero.get_hero_color())
 
@@ -466,9 +640,10 @@ func _update_portrait_for_actor(actor: Actor) -> void:
 	elif actor is SummonedCompanion:
 		_portrait_view.set_actor_portrait("summon", (actor as SummonedCompanion).companion_kind, _portrait_team_color(actor))
 	elif actor is BaseStructure:
-		_portrait_view.set_actor_portrait("structure", "base", _portrait_team_color(actor))
+		_portrait_view.set_actor_portrait("structure", "shrine", _portrait_team_color(actor))
 	elif actor is TowerStructure:
-		_portrait_view.set_actor_portrait("structure", "tower", _portrait_team_color(actor))
+		var tower := actor as TowerStructure
+		_portrait_view.set_actor_portrait("structure", "tower_t%d" % tower.tower_tier, _portrait_team_color(actor))
 	else:
 		_portrait_view.set_actor_portrait("hero", GameCatalog.DEFAULT_HERO_ID, _portrait_team_color(actor))
 
@@ -507,6 +682,8 @@ func _update_ability_cooldowns() -> void:
 				slot.modulate = Color(0.38, 0.38, 0.38, 1.0)
 			elif remaining > 0.0:
 				slot.modulate = Color(0.55, 0.55, 0.55, 1.0)
+			elif skill_points > 0 and ability_level < GameCatalog.MAX_ABILITY_LEVEL:
+				slot.modulate = Color(1.18, 1.12, 0.72, 1.0)
 			else:
 				slot.modulate = Color.WHITE
 			if i < abilities.size():
@@ -519,7 +696,7 @@ func _update_skill_points() -> void:
 		return
 
 	var points := _hero.get_unspent_ability_points() if _hero != null and is_instance_valid(_hero) else 0
-	_skill_points_label.text = "Skill pts: %d" % points
+	_skill_points_label.text = "Ability points: %d" % points
 
 
 func _on_ability_slot_input(event: InputEvent, slot: int) -> void:
@@ -695,17 +872,21 @@ func _format_number(value: float) -> String:
 
 func _on_gold_changed(gold: int) -> void:
 	if _gold_label != null:
-		_gold_label.text = "Gold: %d" % gold
+		_gold_label.text = "%d" % gold
 
 
 func _on_experience_changed(level: int, experience: int, required_experience: int) -> void:
 	if _experience_label != null:
 		_experience_label.text = "Hero Lv %d: %d/%d" % [level, experience, required_experience]
+	if _experience_progress != null:
+		_experience_progress.value = clampf(float(experience) / maxf(float(required_experience), 1.0), 0.0, 1.0)
 
 
 func _on_hero_health_changed(current: float, maximum: float) -> void:
 	if _selected_actor == _hero and _health_label != null:
 		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+		if _health_progress != null:
+			_health_progress.value = clampf(current / maxf(maximum, 1.0), 0.0, 1.0)
 		_update_selected_stats(_hero)
 
 
@@ -714,6 +895,8 @@ func _on_selected_health_changed(current: float, maximum: float) -> void:
 		_hero_label.text = "%s: %s" % [_selected_kind(_selected_actor), _selected_name(_selected_actor)]
 	if _health_label != null:
 		_health_label.text = "HP: %d/%d" % [roundi(current), roundi(maximum)]
+	if _health_progress != null:
+		_health_progress.value = clampf(current / maxf(maximum, 1.0), 0.0, 1.0)
 	_update_selected_stats(_selected_actor)
 
 
@@ -730,8 +913,8 @@ func _update_selected_stats(actor: Actor) -> void:
 	var attacks_per_second := 1.0 / maxf(attack_cooldown, 0.01)
 	var move_speed := float(actor.stats.get("move_speed", 0.0))
 	var health_regen := float(actor.stats.get("health_regen", 0.0))
-	_combat_stats_label.text = "DMG %s  AS %s/s" % [_format_number(attack_damage), _format_number(attacks_per_second)]
-	_utility_stats_label.text = "MS %s  Regen %s/s" % [_format_number(move_speed), _format_number(health_regen)]
+	_combat_stats_label.text = "DMG %s\nAS %s" % [_format_number(attack_damage), _format_number(attacks_per_second)]
+	_utility_stats_label.text = "SPD %s\nREG %s" % [_format_number(move_speed), _format_number(health_regen)]
 
 
 func _selected_kind(actor: Actor) -> String:
@@ -767,11 +950,21 @@ func _selected_name(actor: Actor) -> String:
 		return _summon_display_name((actor as SummonedCompanion).companion_kind)
 	if actor is TowerStructure:
 		var tower := actor as TowerStructure
-		return "%s T%d" % [tower.team, tower.tower_tier]
+		return "%s Tower T%d" % [_team_display_name(tower.team), tower.tower_tier]
 	if actor is BaseStructure:
-		return actor.team
+		return "%s Shrine" % _team_display_name(actor.team)
 
 	return actor.name
+
+
+func _team_display_name(team: String) -> String:
+	match team:
+		GameCatalog.TEAM_PLAYER:
+			return "Light"
+		GameCatalog.TEAM_ENEMY:
+			return "Dark"
+		_:
+			return team.capitalize()
 
 
 func _summon_display_name(kind: String) -> String:

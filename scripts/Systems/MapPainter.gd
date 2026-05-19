@@ -24,7 +24,6 @@ func _draw() -> void:
 	_draw_terrain_noise()
 	_draw_river()
 	_draw_lane_roads()
-	_draw_cliffs_and_walls()
 	_draw_jungle()
 	_draw_bases()
 	_draw_neutral_camps()
@@ -90,9 +89,6 @@ func _draw_river() -> void:
 	draw_polyline(river, Color(0.27, 0.39, 0.39), 68.0, true)
 	draw_polyline(river, Color(0.39, 0.52, 0.49, 0.45), 10.0, true)
 
-	for bridge in [Vector2(-1120.0, -235.0), Vector2(0.0, 0.0), Vector2(1120.0, 235.0)]:
-		_draw_bridge(bridge)
-
 
 func _draw_lane_roads() -> void:
 	if _lane_manager == null:
@@ -105,38 +101,31 @@ func _draw_lane_roads() -> void:
 		draw_polyline(path, Color(0.79, 0.72, 0.52, 0.24), 6.0, true)
 
 
-func _draw_cliffs_and_walls() -> void:
-	for pos in [
-		Vector2(-1100.0, -900.0), Vector2(-1050.0, -900.0), Vector2(-1000.0, -900.0),
-		Vector2(-830.0, -470.0), Vector2(-780.0, -470.0), Vector2(-730.0, -470.0),
-		Vector2(-635.0, 175.0), Vector2(-585.0, 175.0), Vector2(-535.0, 175.0),
-		Vector2(-350.0, 420.0), Vector2(-300.0, 420.0), Vector2(-250.0, 420.0),
-		Vector2(350.0, -420.0), Vector2(300.0, -420.0), Vector2(250.0, -420.0),
-		Vector2(635.0, -175.0), Vector2(585.0, -175.0), Vector2(535.0, -175.0),
-		Vector2(830.0, 470.0), Vector2(780.0, 470.0), Vector2(730.0, 470.0),
-		Vector2(1100.0, 900.0), Vector2(1050.0, 900.0), Vector2(1000.0, 900.0),
-		Vector2(-110.0, -285.0), Vector2(-60.0, -285.0), Vector2(60.0, 285.0), Vector2(110.0, 285.0),
-	]:
-		_draw_wall_piece(pos)
-
-
 func _draw_jungle() -> void:
-	_draw_tree_cluster(Vector2(-1120.0, -760.0), 32, 230.0, 170.0)
-	_draw_tree_cluster(Vector2(-810.0, 40.0), 42, 240.0, 170.0)
-	_draw_tree_cluster(Vector2(-620.0, -300.0), 34, 230.0, 155.0)
-	_draw_tree_cluster(Vector2(-500.0, -820.0), 28, 210.0, 150.0)
-	_draw_tree_cluster(Vector2(-405.0, 345.0), 30, 205.0, 150.0)
-	_draw_tree_cluster(Vector2(-80.0, 470.0), 24, 180.0, 130.0)
-	_draw_tree_cluster(Vector2(-115.0, -430.0), 26, 185.0, 130.0)
-	_draw_tree_cluster(Vector2(-280.0, 910.0), 28, 220.0, 155.0)
-	_draw_tree_cluster(Vector2(1120.0, 760.0), 32, 230.0, 170.0)
-	_draw_tree_cluster(Vector2(810.0, -40.0), 42, 240.0, 170.0)
-	_draw_tree_cluster(Vector2(620.0, 300.0), 34, 230.0, 155.0)
-	_draw_tree_cluster(Vector2(500.0, 820.0), 28, 210.0, 150.0)
-	_draw_tree_cluster(Vector2(405.0, -345.0), 30, 205.0, 150.0)
-	_draw_tree_cluster(Vector2(80.0, -470.0), 24, 180.0, 130.0)
-	_draw_tree_cluster(Vector2(115.0, 430.0), 26, 185.0, 130.0)
-	_draw_tree_cluster(Vector2(280.0, -910.0), 28, 220.0, 155.0)
+	_draw_tree_cluster(Vector2(-1180.0, -820.0), 52, 260.0, 210.0)
+	_draw_tree_cluster(Vector2(-965.0, -520.0), 42, 250.0, 185.0)
+	_draw_tree_cluster(Vector2(-870.0, 95.0), 62, 290.0, 220.0)
+	_draw_tree_cluster(Vector2(-665.0, -360.0), 52, 260.0, 195.0)
+	_draw_tree_cluster(Vector2(-560.0, -910.0), 46, 260.0, 185.0)
+	_draw_tree_cluster(Vector2(-470.0, 405.0), 46, 245.0, 185.0)
+	_draw_tree_cluster(Vector2(-330.0, 955.0), 48, 270.0, 190.0)
+	_draw_tree_cluster(Vector2(-70.0, 560.0), 38, 220.0, 170.0)
+	_draw_tree_cluster(Vector2(-70.0, -560.0), 38, 220.0, 170.0)
+	_draw_tree_cluster(Vector2(-1210.0, 520.0), 42, 230.0, 210.0)
+	_draw_tree_cluster(Vector2(-930.0, 880.0), 44, 250.0, 210.0)
+	_draw_tree_cluster(Vector2(-1030.0, -1120.0), 36, 220.0, 190.0)
+	_draw_tree_cluster(Vector2(1180.0, 820.0), 52, 260.0, 210.0)
+	_draw_tree_cluster(Vector2(965.0, 520.0), 42, 250.0, 185.0)
+	_draw_tree_cluster(Vector2(870.0, -95.0), 62, 290.0, 220.0)
+	_draw_tree_cluster(Vector2(665.0, 360.0), 52, 260.0, 195.0)
+	_draw_tree_cluster(Vector2(560.0, 910.0), 46, 260.0, 185.0)
+	_draw_tree_cluster(Vector2(470.0, -405.0), 46, 245.0, 185.0)
+	_draw_tree_cluster(Vector2(330.0, -955.0), 48, 270.0, 190.0)
+	_draw_tree_cluster(Vector2(70.0, -560.0), 38, 220.0, 170.0)
+	_draw_tree_cluster(Vector2(70.0, 560.0), 38, 220.0, 170.0)
+	_draw_tree_cluster(Vector2(1210.0, -520.0), 42, 230.0, 210.0)
+	_draw_tree_cluster(Vector2(930.0, -880.0), 44, 250.0, 210.0)
+	_draw_tree_cluster(Vector2(1030.0, 1120.0), 36, 220.0, 190.0)
 
 
 func _draw_bases() -> void:
@@ -305,11 +294,20 @@ func _draw_tower(position: Vector2, player_side: bool) -> void:
 
 
 func _draw_tree_cluster(center: Vector2, count: int, width: float, height: float) -> void:
-	for i in range(count):
+	var placed := 0
+	for i in range(count * 4):
+		if placed >= count:
+			return
+
 		var x := center.x - width * 0.5 + float((i * 47) % int(width))
 		var y := center.y - height * 0.5 + float((i * 31) % int(height))
 		var scale := 0.75 + float(i % 4) * 0.12
-		_draw_tree(Vector2(x, y), scale, i % 3 == 0)
+		var position := Vector2(x, y)
+		if _is_near_lane(position, 118.0) or _is_near_base(position, 250.0):
+			continue
+
+		_draw_tree(position, scale, i % 3 == 0)
+		placed += 1
 
 
 func _draw_tree(position: Vector2, scale: float, dark: bool) -> void:
@@ -328,18 +326,37 @@ func _draw_tree(position: Vector2, scale: float, dark: bool) -> void:
 	]), leaf.lightened(0.08))
 
 
-func _draw_wall_piece(position: Vector2) -> void:
-	draw_rect(Rect2(position - Vector2(23.0, 10.0), Vector2(46.0, 20.0)), Color(0.32, 0.31, 0.27))
-	draw_rect(Rect2(position - Vector2(23.0, 10.0), Vector2(46.0, 20.0)), Color(0.13, 0.12, 0.10), false, 2.0)
-	draw_line(position + Vector2(-18.0, -2.0), position + Vector2(18.0, -2.0), Color(0.46, 0.44, 0.38), 2.0)
+func _is_near_lane(position: Vector2, clearance: float) -> bool:
+	if _lane_manager == null:
+		return false
+
+	for lane in [GameCatalog.LANE_TOP, GameCatalog.LANE_MIDDLE, GameCatalog.LANE_BOTTOM]:
+		var path := _lane_manager.get_lane_path(GameCatalog.TEAM_PLAYER, lane)
+		for i in range(path.size() - 1):
+			if _distance_to_segment(position, path[i], path[i + 1]) <= clearance:
+				return true
+
+	return false
 
 
-func _draw_bridge(position: Vector2) -> void:
-	draw_rect(Rect2(position - Vector2(45.0, 13.0), Vector2(90.0, 26.0)), Color(0.38, 0.25, 0.14))
-	for i in range(6):
-		var x := position.x - 36.0 + float(i) * 14.0
-		draw_line(Vector2(x, position.y - 12.0), Vector2(x, position.y + 12.0), Color(0.20, 0.13, 0.08), 2.0)
-	draw_rect(Rect2(position - Vector2(45.0, 13.0), Vector2(90.0, 26.0)), Color(0.08, 0.06, 0.04), false, 2.0)
+func _is_near_base(position: Vector2, clearance: float) -> bool:
+	if _lane_manager == null:
+		return false
+
+	return (
+		position.distance_to(_lane_manager.get_base_position(GameCatalog.TEAM_PLAYER)) <= clearance
+		or position.distance_to(_lane_manager.get_base_position(GameCatalog.TEAM_ENEMY)) <= clearance
+	)
+
+
+func _distance_to_segment(point: Vector2, start: Vector2, end: Vector2) -> float:
+	var segment := end - start
+	var length_squared := segment.length_squared()
+	if length_squared <= 0.001:
+		return point.distance_to(start)
+
+	var t := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+	return point.distance_to(start + segment * t)
 
 
 func _draw_rock(position: Vector2, scale: float) -> void:

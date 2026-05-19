@@ -6,6 +6,7 @@ extends Actor
 
 func configure_base(new_team: String, position: Vector2) -> void:
 	global_position = position
+	draw_radius = maxf(size.x, size.y) * 0.42
 	add_to_group("structure")
 	configure(new_team, GameCatalog.LANE_MIDDLE, GameCatalog.stats(2600.0, 0.0, 0.0, 0.0, 1.0))
 	add_to_group("team_%s_structures" % team)
@@ -21,14 +22,19 @@ func get_hit_radius() -> float:
 
 
 func get_pick_radius() -> float:
-	return maxf(size.x, size.y) * 0.62
+	return maxf(size.y * 0.90, 76.0)
 
 
 func _draw() -> void:
 	var rect := Rect2(-size / 2.0, size)
+	var visual_rect := Rect2(Vector2(-size.x * 1.02, -size.y * 0.95), Vector2(size.x * 2.04, size.y * 1.56))
 	var team_color := _get_team_color()
 	if is_selected:
-		draw_rect(rect.grow(9.0), Color(1.0, 0.92, 0.42, 0.92), false, 3.0)
+		draw_rect(visual_rect.grow(9.0), Color(1.0, 0.92, 0.42, 0.92), false, 3.0)
+
+	if UnitArt.draw_shrine(self, team, size):
+		_draw_health_bar()
+		return
 
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(-size.x * 0.62, size.y * 0.45),
@@ -49,3 +55,7 @@ func _draw() -> void:
 	]), team_color.lightened(0.12))
 	draw_rect(rect, Color.BLACK, false, 2.5)
 	_draw_health_bar()
+
+
+func _get_health_bar_offset() -> float:
+	return size.y * 0.92

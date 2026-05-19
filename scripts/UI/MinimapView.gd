@@ -8,7 +8,8 @@ var _redraw_timer := 0.0
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(150.0, 150.0)
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(150.0, 150.0)
 	queue_redraw()
 
 
@@ -25,6 +26,11 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	var side := minf(size.x, size.y)
+	var draw_origin := (size - Vector2(side, side)) * 0.5
+	var draw_scale := Vector2(side / maxf(size.x, 1.0), side / maxf(size.y, 1.0))
+	draw_set_transform(draw_origin, 0.0, draw_scale)
+
 	var rect := Rect2(Vector2.ZERO, size)
 	draw_rect(rect, Color(0.08, 0.10, 0.08))
 	draw_colored_polygon(PackedVector2Array([
@@ -93,6 +99,7 @@ func _draw() -> void:
 	draw_circle(_to_mini(Vector2(1245.0, -1255.0)), 5.0, Color(0.90, 0.20, 0.18))
 	_draw_actor_markers()
 	draw_rect(rect, Color(0.72, 0.65, 0.48), false, 2.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_mini_lane(points: PackedVector2Array) -> void:

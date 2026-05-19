@@ -36,17 +36,22 @@ func get_hit_radius() -> float:
 
 
 func get_pick_radius() -> float:
-	return maxf(size.x, size.y) * 0.62
+	return maxf(size.y * 0.82, 42.0)
 
 
 func _draw() -> void:
 	var rect := Rect2(-size / 2.0, size)
+	var visual_rect := Rect2(Vector2(-size.x * 1.05, -size.y * 1.32), Vector2(size.x * 2.10, size.y * 1.96))
 	var team_color := _get_team_color()
 
 	if is_selected:
-		draw_rect(rect.grow(8.0), Color(1.0, 0.92, 0.42, 0.92), false, 3.0)
+		draw_rect(visual_rect.grow(8.0), Color(1.0, 0.92, 0.42, 0.92), false, 3.0)
 
 	_draw_attack_radius(team_color)
+
+	if UnitArt.draw_tower(self, team, tower_tier, size):
+		_draw_health_bar()
+		return
 
 	draw_rect(rect, Color(0.32, 0.29, 0.24))
 	draw_rect(rect.grow(-6.0), team_color.darkened(0.2))
@@ -63,6 +68,10 @@ func _draw() -> void:
 
 	draw_rect(rect, Color.BLACK, false, 2.0)
 	_draw_health_bar()
+
+
+func _get_health_bar_offset() -> float:
+	return size.y * 1.08
 
 
 func _draw_attack_radius(team_color: Color) -> void:
