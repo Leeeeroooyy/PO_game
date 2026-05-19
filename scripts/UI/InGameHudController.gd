@@ -6,6 +6,9 @@ signal shop_requested
 const HeroPortraitViewScript := preload("res://scripts/UI/HeroPortraitView.gd")
 const HUD_BOTTOM_FRAME: Texture2D = preload("res://assets/ui/hud_bottom_frame.png")
 const HUD_TIMER_FRAME: Texture2D = preload("res://assets/ui/hud_timer_frame.png")
+const HUD_DESIGN_WIDTH := 1280.0
+const HUD_BOTTOM_HEIGHT := 160.0
+const HUD_BOTTOM_MARGIN := 0.0
 
 var _gold_label: Button
 var _experience_label: Label
@@ -66,14 +69,14 @@ func _ready() -> void:
 	top_timer.get_node("Content").add_child(_wave_timer_label)
 
 	var bottom_bar := Control.new()
-	bottom_bar.anchor_left = 0.0
-	bottom_bar.anchor_right = 1.0
+	bottom_bar.anchor_left = 0.5
+	bottom_bar.anchor_right = 0.5
 	bottom_bar.anchor_top = 1.0
 	bottom_bar.anchor_bottom = 1.0
-	bottom_bar.offset_left = 0.0
-	bottom_bar.offset_right = 0.0
-	bottom_bar.offset_top = -170.0
-	bottom_bar.offset_bottom = -10.0
+	bottom_bar.offset_left = -HUD_DESIGN_WIDTH * 0.5
+	bottom_bar.offset_right = HUD_DESIGN_WIDTH * 0.5
+	bottom_bar.offset_top = -(HUD_BOTTOM_HEIGHT + HUD_BOTTOM_MARGIN)
+	bottom_bar.offset_bottom = -HUD_BOTTOM_MARGIN
 	bottom_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bottom_bar)
 	_add_texture_backdrop(bottom_bar, HUD_BOTTOM_FRAME)
