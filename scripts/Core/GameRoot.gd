@@ -23,6 +23,10 @@ func _load_default_scenes() -> void:
 
 
 func _show_main_menu() -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio != null and audio.has_method("play_menu_music"):
+		audio.call("play_menu_music")
+
 	var menu := main_menu_scene.instantiate() as MainMenuController
 	menu.start_pressed.connect(_show_hero_select)
 	menu.quit_pressed.connect(_quit_game)
@@ -37,9 +41,14 @@ func _show_hero_select() -> void:
 
 
 func _start_game(hero_id: String) -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio != null and audio.has_method("play_game_music"):
+		audio.call("play_game_music")
+
 	var world := game_world_scene.instantiate() as GameWorld
 	world.selected_hero_id = hero_id
 	world.game_ended.connect(_on_game_ended)
+	world.main_menu_requested.connect(_show_main_menu)
 	_replace_screen(world)
 
 
@@ -53,6 +62,7 @@ func _quit_game() -> void:
 
 
 func _replace_screen(next_screen: Node) -> void:
+	get_tree().paused = false
 	if _current_screen != null:
 		remove_child(_current_screen)
 		_current_screen.queue_free()

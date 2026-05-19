@@ -3,6 +3,7 @@ extends Control
 
 var _shop: ShopSystem
 var _economy: EconomySystem
+var _panel: PanelContainer
 var _rows: VBoxContainer
 var _gold_label: Label
 
@@ -11,23 +12,23 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var panel := PanelContainer.new()
-	panel.anchor_left = 1.0
-	panel.anchor_right = 1.0
-	panel.anchor_bottom = 1.0
-	panel.offset_left = -360.0
-	panel.offset_right = -24.0
-	panel.offset_top = 68.0
-	panel.offset_bottom = -160.0
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(panel)
+	_panel = PanelContainer.new()
+	_panel.anchor_left = 1.0
+	_panel.anchor_right = 1.0
+	_panel.anchor_bottom = 1.0
+	_panel.offset_left = -360.0
+	_panel.offset_right = -24.0
+	_panel.offset_top = 68.0
+	_panel.offset_bottom = -212.0
+	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_panel)
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 14)
 	margin.add_theme_constant_override("margin_right", 14)
 	margin.add_theme_constant_override("margin_top", 14)
 	margin.add_theme_constant_override("margin_bottom", 14)
-	panel.add_child(margin)
+	_panel.add_child(margin)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 12)
@@ -45,7 +46,7 @@ func _ready() -> void:
 	var close_button := Button.new()
 	close_button.text = "X"
 	close_button.custom_minimum_size = Vector2(34.0, 30.0)
-	close_button.pressed.connect(func() -> void: toggle())
+	close_button.pressed.connect(close)
 	header.add_child(close_button)
 
 	_gold_label = Label.new()
@@ -75,9 +76,30 @@ func bind(shop: ShopSystem, economy: EconomySystem) -> void:
 
 
 func toggle() -> void:
-	visible = not visible
 	if visible:
-		refresh()
+		close()
+	else:
+		open()
+
+
+func open() -> void:
+	visible = true
+	refresh()
+
+
+func close() -> void:
+	visible = false
+
+
+func is_open() -> bool:
+	return visible
+
+
+func is_screen_position_inside_panel(screen_position: Vector2) -> bool:
+	if not visible or _panel == null:
+		return false
+
+	return _panel.get_global_rect().has_point(screen_position)
 
 
 func refresh() -> void:

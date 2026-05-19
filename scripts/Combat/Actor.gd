@@ -6,7 +6,7 @@ signal health_changed(current: float, maximum: float)
 
 const ATTACK_VISUAL_DURATION := 0.34
 const CAST_VISUAL_DURATION := 0.46
-const VISUAL_REDRAW_INTERVAL := 1.0 / 30.0
+const VISUAL_REDRAW_INTERVAL := 1.0 / 22.0
 
 @export var team := "neutral"
 @export var lane := "middle"
@@ -129,8 +129,10 @@ func try_attack(target: Actor) -> bool:
 	if global_position.distance_to(target.global_position) > _stat("attack_range") + target.get_hit_radius():
 		return false
 
+	var is_ranged_attack := _is_ranged_attack(target)
 	trigger_attack_visual(target.global_position)
-	_spawn_attack_effect(target)
+	_spawn_attack_effect(target, is_ranged_attack)
+	_play_attack_audio(target, is_ranged_attack)
 	target.take_damage(_stat("attack_damage") * _attack_damage_multiplier, self)
 	_attack_cooldown = _stat("attack_cooldown")
 	return true
@@ -275,7 +277,7 @@ func set_selected(selected: bool) -> void:
 	queue_redraw()
 
 
-func _spawn_attack_effect(target: Actor) -> void:
+func _spawn_attack_effect(target: Actor, is_ranged_attack: bool) -> void:
 	var effect_parent: Node = get_tree().current_scene
 	if effect_parent == null:
 		effect_parent = get_parent()
@@ -284,10 +286,46 @@ func _spawn_attack_effect(target: Actor) -> void:
 
 	var start_position: Vector2 = global_position
 	var end_position: Vector2 = target.global_position
-	var is_ranged_attack := _stat("attack_range") > maxf(get_hit_radius() + target.get_hit_radius() + 44.0, 82.0)
 	var effect: AttackEffect = AttackEffect.new()
 	effect_parent.add_child(effect)
 	effect.configure_attack(start_position, end_position, _get_attack_effect_color(), is_ranged_attack, target.get_hit_radius() + 8.0, _get_projectile_kind(is_ranged_attack))
+
+
+func _play_attack_audio(target: Actor, is_ranged_attack: bool) -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio == null:
+		return
+
+	var sound_position := global_position.lerp(target.global_position, 0.5)
+	if audio.has_method("play_attack_sound"):
+		audio.call("play_attack_sound", _get_attack_sound_kind(is_ranged_attack), sound_position)
+	if audio.has_method("notify_enemy_structure_fight") and _is_player_hero_enemy_tower_fight(target):
+		audio.call("notify_enemy_structure_fight")
+
+
+func _get_attack_sound_kind(is_ranged_attack: bool) -> String:
+	if is_in_group("tower"):
+		return "tower"
+
+	return "ranged" if is_ranged_attack else "melee"
+
+
+func _is_ranged_attack(target: Actor) -> bool:
+	return _stat("attack_range") > maxf(get_hit_radius() + target.get_hit_radius() + 44.0, 82.0)
+
+
+func _is_player_hero_enemy_tower_fight(target: Actor) -> bool:
+	return (
+		self is HeroController
+		and team == GameCatalog.TEAM_PLAYER
+		and target is TowerStructure
+		and target.team == GameCatalog.TEAM_ENEMY
+	) or (
+		self is TowerStructure
+		and team == GameCatalog.TEAM_ENEMY
+		and target is HeroController
+		and target.team == GameCatalog.TEAM_PLAYER
+	)
 
 
 func _get_attack_effect_color() -> Color:

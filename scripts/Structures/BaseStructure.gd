@@ -6,7 +6,9 @@ extends Actor
 
 func configure_base(new_team: String, position: Vector2) -> void:
 	global_position = position
+	add_to_group("structure")
 	configure(new_team, GameCatalog.LANE_MIDDLE, GameCatalog.stats(2600.0, 0.0, 0.0, 0.0, 1.0))
+	add_to_group("team_%s_structures" % team)
 
 
 func _physics_process(delta: float) -> void:

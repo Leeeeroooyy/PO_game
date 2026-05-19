@@ -28,9 +28,15 @@ var _economy: EconomySystem
 var _experience: ExperienceSystem
 var _hero: HeroController
 var _selected_actor: Actor
+var _hud_process_timer := 0.0
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_hud_process_timer = maxf(0.0, _hud_process_timer - delta)
+	if _hud_process_timer > 0.0:
+		return
+
+	_hud_process_timer = 0.12
 	_update_ability_cooldowns()
 	_refresh_ability_tooltip()
 
@@ -214,7 +220,9 @@ func set_wave_timer(remaining: float, next_wave_number: int, has_catapult := fal
 		return
 
 	var wave_name := "Siege wave" if has_catapult else "Wave"
-	_wave_timer_label.text = "%s %d in %ds" % [wave_name, next_wave_number, ceili(maxf(0.0, remaining))]
+	var text := "%s %d in %ds" % [wave_name, next_wave_number, ceili(maxf(0.0, remaining))]
+	if _wave_timer_label.text != text:
+		_wave_timer_label.text = text
 
 
 func _create_portrait_panel() -> Control:

@@ -3,7 +3,11 @@ extends Actor
 
 @export var size := Vector2(42.0, 58.0)
 
+const TARGET_REFRESH_INTERVAL := 0.16
+
 var tower_tier := 1
+var _target_refresh_timer := 0.0
+var _cached_target: Actor
 
 
 func configure_tower(new_team: String, new_lane: String, tower_position: Vector2, tier: int) -> void:
@@ -13,14 +17,16 @@ func configure_tower(new_team: String, new_lane: String, tower_position: Vector2
 	size = Vector2(38.0 + float(tower_tier) * 5.0, 54.0 + float(tower_tier) * 8.0)
 	draw_radius = maxf(size.x, size.y) * 0.34
 	add_to_group("tower")
+	add_to_group("structure")
 	configure(new_team, new_lane, GameCatalog.create_tower_stats(tower_tier))
+	add_to_group("team_%s_structures" % team)
 
 
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	velocity = Vector2.ZERO
 
-	var target := _find_tower_target()
+	var target := _get_tower_target(delta)
 	if target != null:
 		try_attack(target)
 
@@ -68,6 +74,27 @@ func _draw_attack_radius(team_color: Color) -> void:
 	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 80, Color(team_color.r, team_color.g, team_color.b, line_alpha), line_width)
 
 
+func _get_tower_target(delta: float) -> Actor:
+	if _is_cached_target_valid():
+		return _cached_target
+
+	_target_refresh_timer = maxf(0.0, _target_refresh_timer - delta)
+	if _target_refresh_timer > 0.0:
+		return null
+
+	_target_refresh_timer = TARGET_REFRESH_INTERVAL
+	_cached_target = _find_tower_target()
+	return _cached_target
+
+
+func _is_cached_target_valid() -> bool:
+	if _cached_target == null or not is_instance_valid(_cached_target) or not can_damage(_cached_target):
+		return false
+
+	var edge_distance := maxf(0.0, global_position.distance_to(_cached_target.global_position) - _cached_target.get_hit_radius())
+	return edge_distance <= _stat("attack_range")
+
+
 func _find_tower_target() -> Actor:
 	var attack_range := _stat("attack_range")
 	var best_creep := _find_nearest_tower_target(attack_range, true)
@@ -81,7 +108,7 @@ func _find_nearest_tower_target(attack_range: float, creeps_only: bool) -> Actor
 	var best: Actor = null
 	var best_edge_distance := attack_range
 
-	for node in get_tree().get_nodes_in_group("combat_actor"):
+	for node in _get_tower_target_nodes(creeps_only):
 		var actor := node as Actor
 		if actor == null or actor.team == GameCatalog.TEAM_NEUTRAL or actor is BaseStructure or actor is TowerStructure or not can_damage(actor):
 			continue
@@ -96,3 +123,11 @@ func _find_nearest_tower_target(attack_range: float, creeps_only: bool) -> Actor
 			best_edge_distance = edge_distance
 
 	return best
+
+
+func _get_tower_target_nodes(creeps_only: bool) -> Array:
+	var enemy_team := GameCatalog.TEAM_ENEMY if team == GameCatalog.TEAM_PLAYER else GameCatalog.TEAM_PLAYER
+	if creeps_only:
+		return get_tree().get_nodes_in_group("lane_unit_%s_%s" % [enemy_team, lane])
+
+	return get_tree().get_nodes_in_group("team_%s_heroes" % enemy_team)

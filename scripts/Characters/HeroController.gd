@@ -78,6 +78,7 @@ func configure_hero(definition: Dictionary, hero_level := 1) -> void:
 	_hero_display_name = String(definition.get("display_name", _format_hero_id(hero_id)))
 	_hero_body_color = _color_for_hero(hero_id)
 	configure(GameCatalog.TEAM_PLAYER, GameCatalog.LANE_MIDDLE, GameCatalog.create_scaled_hero_stats(_hero_definition, _hero_level))
+	add_to_group("team_%s_heroes" % team)
 
 	_bind_ability_caster()
 	if _ability_caster != null:

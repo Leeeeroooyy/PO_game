@@ -6,6 +6,7 @@ signal back_requested
 
 const HeroPortraitViewScript := preload("res://scripts/UI/HeroPortraitView.gd")
 const MenuBackdropScript := preload("res://scripts/UI/MenuBackdrop.gd")
+const MenuImageBackgroundScript := preload("res://scripts/UI/MenuImageBackground.gd")
 
 const CARD_SIZE := Vector2(218.0, 292.0)
 const CARD_SPACING := 14
@@ -43,6 +44,10 @@ func _load_heroes() -> void:
 
 
 func _build_layout() -> void:
+	var image_background := MenuImageBackgroundScript.new() as MenuImageBackground
+	image_background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(image_background)
+
 	var backdrop := MenuBackdropScript.new() as MenuBackdrop
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	backdrop.accent_color = Color(0.48, 0.74, 0.52)
@@ -50,7 +55,7 @@ func _build_layout() -> void:
 
 	var veil := ColorRect.new()
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
-	veil.color = Color(0.0, 0.0, 0.0, 0.26)
+	veil.color = Color(0.0, 0.0, 0.0, 0.46)
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(veil)
 
@@ -122,7 +127,7 @@ func _create_carousel_panel() -> Control:
 	panel.custom_minimum_size = Vector2(560.0, 0.0)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.056, 0.054, 0.96), Color(0.50, 0.68, 0.48, 0.48)))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.045, 0.056, 0.054, 1.0), Color(0.50, 0.68, 0.48, 0.72)))
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 16)
@@ -207,9 +212,9 @@ func _create_hero_card(hero: Dictionary, index: int) -> Button:
 	card.custom_minimum_size = CARD_SIZE
 	card.size = CARD_SIZE
 	card.pivot_offset = CARD_SIZE * 0.5
-	card.add_theme_stylebox_override("normal", _card_style(Color(0.065, 0.080, 0.074, 0.96), _hero_color(hero_id).darkened(0.22)))
-	card.add_theme_stylebox_override("hover", _card_style(Color(0.095, 0.115, 0.104, 0.98), _hero_color(hero_id).lightened(0.18)))
-	card.add_theme_stylebox_override("pressed", _card_style(Color(0.045, 0.052, 0.050, 0.98), _hero_color(hero_id)))
+	card.add_theme_stylebox_override("normal", _card_style(Color(0.065, 0.080, 0.074, 1.0), _hero_color(hero_id).darkened(0.22)))
+	card.add_theme_stylebox_override("hover", _card_style(Color(0.095, 0.115, 0.104, 1.0), _hero_color(hero_id).lightened(0.18)))
+	card.add_theme_stylebox_override("pressed", _card_style(Color(0.045, 0.052, 0.050, 1.0), _hero_color(hero_id)))
 	card.pressed.connect(_select_card.bind(index))
 
 	var margin := MarginContainer.new()
@@ -301,7 +306,7 @@ func _layout_cards(animate: bool) -> void:
 		card.modulate = Color.WHITE
 		card.z_index = 0
 		card.add_theme_stylebox_override("normal", _card_style(
-			Color(0.075, 0.094, 0.086, 1.0) if selected else Color(0.065, 0.080, 0.074, 0.98),
+			Color(0.075, 0.094, 0.086, 1.0) if selected else Color(0.065, 0.080, 0.074, 1.0),
 			_hero_color(hero_id).lightened(0.18) if selected else _hero_color(hero_id).darkened(0.22)
 		))
 

@@ -14,6 +14,9 @@ func _notification(what: int) -> void:
 
 
 func _draw() -> void:
+	if _has_image_background():
+		return
+
 	var rect := Rect2(Vector2.ZERO, size)
 	draw_rect(rect, Color(0.035, 0.045, 0.048))
 	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, size.y * 0.46)), Color(0.065, 0.085, 0.082, 0.92))
@@ -36,3 +39,11 @@ func _draw() -> void:
 		draw_rect(Rect2(tower_rect.position + Vector2(8.0, -18.0), Vector2(32.0, 20.0)), Color(0.014, 0.017, 0.018, 0.58))
 
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.0, 0.0, 0.0, 0.18))
+
+
+func _has_image_background() -> bool:
+	for path in MenuImageBackground.BACKGROUND_PATHS:
+		if ResourceLoader.exists(path):
+			return true
+
+	return false

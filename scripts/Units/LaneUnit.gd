@@ -25,8 +25,8 @@ const LANE_CORRIDOR_PADDING := 18.0
 const LANE_RETURN_FORCE := 150.0
 const LANE_HARD_CLAMP_PADDING := 20.0
 const STUCK_RECOVERY_TIME := 0.65
-const TARGET_REFRESH_INTERVAL := 0.18
-const SEPARATION_REFRESH_INTERVAL := 0.10
+const TARGET_REFRESH_INTERVAL := 0.28
+const SEPARATION_REFRESH_INTERVAL := 0.18
 
 var lane_path := PackedVector2Array()
 var _waypoint_index := 1
@@ -83,6 +83,7 @@ func configure_lane_unit(new_unit_id: String, new_team: String, new_lane: String
 	lane_target = lane_path[lane_path.size() - 1] if lane_path.size() > 0 else Vector2.ZERO
 	_apply_upgrade_visuals()
 	configure(new_team, new_lane, new_stats)
+	_refresh_lane_unit_groups()
 	queue_redraw()
 
 
@@ -245,7 +246,7 @@ func _find_best_lane_target(search_radius: float, allow_heroes := false, only_la
 	var best: Actor = null
 	var best_score := INF
 
-	for node in _get_lane_target_nodes():
+	for node in _get_lane_target_nodes(only_lane_creeps, allow_heroes):
 		var actor := node as Actor
 		if not _is_valid_lane_target(actor):
 			continue
@@ -266,14 +267,21 @@ func _find_best_lane_target(search_radius: float, allow_heroes := false, only_la
 	return best
 
 
-func _get_lane_target_nodes() -> Array:
-	match team:
-		GameCatalog.TEAM_PLAYER:
-			return get_tree().get_nodes_in_group("team_enemy")
-		GameCatalog.TEAM_ENEMY:
-			return get_tree().get_nodes_in_group("team_player")
-		_:
-			return get_tree().get_nodes_in_group("combat_actor")
+func _get_lane_target_nodes(only_lane_creeps: bool, allow_heroes: bool) -> Array:
+	var enemy_team := _enemy_team()
+	if enemy_team.is_empty():
+		return get_tree().get_nodes_in_group("combat_actor")
+
+	var nodes := get_tree().get_nodes_in_group(_lane_unit_group(enemy_team, lane))
+	if only_lane_creeps:
+		return nodes
+
+	nodes.append_array(get_tree().get_nodes_in_group("team_%s_structures" % enemy_team))
+	nodes.append_array(get_tree().get_nodes_in_group("team_%s_summons" % enemy_team))
+	if allow_heroes:
+		nodes.append_array(get_tree().get_nodes_in_group("team_%s_heroes" % enemy_team))
+
+	return nodes
 
 
 func _can_keep_combat_target(candidate) -> bool:
@@ -419,11 +427,9 @@ func _with_soft_separation(base_velocity: Vector2, delta: float) -> Vector2:
 
 func _calculate_soft_separation_push() -> Vector2:
 	var push := Vector2.ZERO
-	for node in get_tree().get_nodes_in_group("team_%s" % team):
+	for node in get_tree().get_nodes_in_group(_lane_unit_group(team, lane)):
 		var actor := node as Actor
 		if actor == null or actor == self or not is_instance_valid(actor) or not actor.is_alive() or actor.team != team:
-			continue
-		if not (actor is LaneUnit or actor is SummonedCompanion):
 			continue
 
 		var delta := global_position - actor.global_position
@@ -436,6 +442,30 @@ func _calculate_soft_separation_push() -> Vector2:
 		push += direction * ((spacing - distance) / spacing)
 
 	return push
+
+
+func _refresh_lane_unit_groups() -> void:
+	for team_name in [GameCatalog.TEAM_PLAYER, GameCatalog.TEAM_ENEMY, GameCatalog.TEAM_NEUTRAL]:
+		for lane_name in [GameCatalog.LANE_TOP, GameCatalog.LANE_MIDDLE, GameCatalog.LANE_BOTTOM]:
+			var group_name := _lane_unit_group(team_name, lane_name)
+			if is_in_group(group_name):
+				remove_from_group(group_name)
+
+	add_to_group(_lane_unit_group(team, lane))
+
+
+func _lane_unit_group(group_team: String, group_lane: String) -> String:
+	return "lane_unit_%s_%s" % [group_team, group_lane]
+
+
+func _enemy_team() -> String:
+	match team:
+		GameCatalog.TEAM_PLAYER:
+			return GameCatalog.TEAM_ENEMY
+		GameCatalog.TEAM_ENEMY:
+			return GameCatalog.TEAM_PLAYER
+		_:
+			return ""
 
 
 func _fallback_separation_direction(actor: Actor) -> Vector2:

@@ -54,6 +54,7 @@ func configure_companion(kind: String, owner: Actor, position: Vector2, new_stat
 	collision_layer = 0
 	collision_mask = 0
 	configure(owner.team if owner != null else GameCatalog.TEAM_PLAYER, GameCatalog.LANE_MIDDLE, new_stats)
+	add_to_group("team_%s_summons" % team)
 
 	match companion_kind:
 		"treant":

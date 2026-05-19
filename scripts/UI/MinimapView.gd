@@ -2,6 +2,9 @@ class_name MinimapView
 extends Control
 
 const MAP_RECT := Rect2(Vector2(-1400.0, -1400.0), Vector2(2800.0, 2800.0))
+const REDRAW_INTERVAL := 0.16
+
+var _redraw_timer := 0.0
 
 
 func _ready() -> void:
@@ -9,9 +12,16 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func _process(_delta: float) -> void:
-	if visible:
-		queue_redraw()
+func _process(delta: float) -> void:
+	if not visible:
+		return
+
+	_redraw_timer = maxf(0.0, _redraw_timer - delta)
+	if _redraw_timer > 0.0:
+		return
+
+	_redraw_timer = REDRAW_INTERVAL
+	queue_redraw()
 
 
 func _draw() -> void:

@@ -2,8 +2,10 @@ class_name GameWorld
 extends Node2D
 
 signal game_ended(victory: bool)
+signal main_menu_requested
 
 const FloatingGoldPopupScript := preload("res://scripts/UI/FloatingGoldPopup.gd")
+const PauseMenuScript := preload("res://scripts/UI/PauseMenuController.gd")
 
 @export var selected_hero_id := GameCatalog.DEFAULT_HERO_ID
 @export var player_hero_scene: PackedScene
@@ -42,6 +44,7 @@ var _enemy_hero: EnemyHeroAi
 var _enemy_hero_definition := {}
 var _hud: InGameHudController
 var _shop_panel: ShopController
+var _pause_menu: PauseMenuController
 var _selected_actor: Actor
 var _player_ability_points := 0
 var _player_ability_levels: Array[int] = []
@@ -56,13 +59,17 @@ var _order_marker_timer := 0.0
 var _order_marker_duration := 0.45
 var _order_marker_is_attack := false
 var _attack_target_marker_visible := false
+var _attack_target_marker_redraw_timer := 0.0
+var _ui_tick_timer := 0.0
+var _audio_listener_timer := 0.0
 
 
 func _process(delta: float) -> void:
 	_tick_respawns(delta)
 	_tick_order_marker(delta)
-	_tick_attack_target_marker()
-	_update_wave_timer()
+	_tick_attack_target_marker(delta)
+	_tick_ui_refresh(delta)
+	_tick_audio_listener(delta)
 
 	if _camera == null or _player_hero == null or not is_instance_valid(_player_hero):
 		return
@@ -72,6 +79,10 @@ func _process(delta: float) -> void:
 
 
 func _ready() -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio != null and audio.has_method("play_game_music"):
+		audio.call("play_game_music")
+
 	_load_default_scenes()
 
 	_create_camera()
@@ -115,6 +126,14 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		_toggle_pause_menu()
+		get_viewport().set_input_as_handled()
+		return
+
+	if get_tree().paused:
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_B:
 		if _shop_panel != null:
 			_shop_panel.toggle()
@@ -122,6 +141,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		var mouse_event := event as InputEventMouseButton
 		var mouse_position := get_global_mouse_position()
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT and _shop_panel != null and _shop_panel.is_open():
+			if not _shop_panel.is_screen_position_inside_panel(mouse_event.position):
+				_shop_panel.close()
+				get_viewport().set_input_as_handled()
+				return
+
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
 			var clicked_actor := _find_actor_at(mouse_position)
 			if clicked_actor != null:
@@ -311,7 +336,45 @@ func _create_ui() -> void:
 	ui_layer.add_child(_shop_panel)
 	_shop_panel.bind(_shop, _economy)
 	_shop_panel.visible = false
+	_create_pause_menu(ui_layer)
 	_update_wave_timer()
+
+
+func _create_pause_menu(ui_layer: CanvasLayer) -> void:
+	_pause_menu = PauseMenuScript.new() as PauseMenuController
+	_pause_menu.visible = false
+	_pause_menu.resume_requested.connect(_resume_game)
+	_pause_menu.main_menu_requested.connect(_return_to_main_menu)
+	ui_layer.add_child(_pause_menu)
+
+
+func _toggle_pause_menu() -> void:
+	if _pause_menu == null:
+		return
+
+	if get_tree().paused:
+		_resume_game()
+	else:
+		_pause_game()
+
+
+func _pause_game() -> void:
+	if _pause_menu == null:
+		return
+
+	_pause_menu.visible = true
+	get_tree().paused = true
+
+
+func _resume_game() -> void:
+	get_tree().paused = false
+	if _pause_menu != null:
+		_pause_menu.visible = false
+
+
+func _return_to_main_menu() -> void:
+	get_tree().paused = false
+	main_menu_requested.emit()
 
 
 func _register_actor(actor: Actor) -> void:
@@ -493,6 +556,24 @@ func _toggle_shop() -> void:
 		_shop_panel.toggle()
 
 
+func _tick_ui_refresh(delta: float) -> void:
+	_ui_tick_timer = maxf(0.0, _ui_tick_timer - delta)
+	if _ui_tick_timer > 0.0:
+		return
+
+	_ui_tick_timer = 0.18
+	_update_wave_timer()
+
+
+func _tick_audio_listener(delta: float) -> void:
+	_audio_listener_timer = maxf(0.0, _audio_listener_timer - delta)
+	if _audio_listener_timer > 0.0:
+		return
+
+	_audio_listener_timer = 0.12
+	_update_audio_listener()
+
+
 func _show_gold_popup(world_position: Vector2, amount: int) -> void:
 	if amount <= 0:
 		return
@@ -509,6 +590,9 @@ func _world_to_ui_position(world_position: Vector2) -> Vector2:
 
 func _start_player_respawn() -> void:
 	_player_respawn_remaining = player_respawn_time
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio != null and audio.has_method("play_death_music"):
+		audio.call("play_death_music")
 	if _hud != null:
 		_hud.set_respawn_time(_player_respawn_remaining)
 
@@ -532,6 +616,10 @@ func _tick_respawns(delta: float) -> void:
 
 
 func _respawn_player_hero() -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio != null and audio.has_method("stop_death_music"):
+		audio.call("stop_death_music")
+
 	_spawn_player_hero()
 	if _hud != null:
 		_hud.bind(_economy, _experience, _player_hero)
@@ -623,9 +711,12 @@ func _tick_order_marker(delta: float) -> void:
 	queue_redraw()
 
 
-func _tick_attack_target_marker() -> void:
+func _tick_attack_target_marker(delta: float) -> void:
 	var marker_visible := _get_player_attack_target() != null
-	if marker_visible or marker_visible != _attack_target_marker_visible:
+	var visibility_changed := marker_visible != _attack_target_marker_visible
+	_attack_target_marker_redraw_timer = maxf(0.0, _attack_target_marker_redraw_timer - delta)
+	if visibility_changed or (marker_visible and _attack_target_marker_redraw_timer <= 0.0):
+		_attack_target_marker_redraw_timer = 0.05
 		queue_redraw()
 
 	_attack_target_marker_visible = marker_visible
@@ -640,6 +731,36 @@ func _update_wave_timer() -> void:
 		_wave_spawner.get_next_wave_number(),
 		_wave_spawner.get_next_wave_has_catapult()
 	)
+
+
+func _update_audio_listener() -> void:
+	var audio := get_node_or_null("/root/AudioDirector")
+	if audio == null or not audio.has_method("set_audible_world_rect"):
+		return
+
+	if _player_hero == null or not is_instance_valid(_player_hero) or not _player_hero.is_alive():
+		if audio.has_method("set_effects_blocked"):
+			audio.call("set_effects_blocked", true)
+		if audio.has_method("clear_listener_context"):
+			audio.call("clear_listener_context")
+		return
+
+	if audio.has_method("set_effects_blocked"):
+		audio.call("set_effects_blocked", false)
+	audio.call("set_audible_world_rect", _get_camera_visible_world_rect())
+
+
+func _get_camera_visible_world_rect() -> Rect2:
+	if _camera == null:
+		return Rect2()
+
+	var viewport_size := get_viewport_rect().size
+	var zoom := _camera.zoom
+	var visible_size := Vector2(
+		viewport_size.x / maxf(zoom.x, 0.001),
+		viewport_size.y / maxf(zoom.y, 0.001)
+	)
+	return Rect2(_camera.global_position - visible_size * 0.5, visible_size)
 
 
 func _draw() -> void:
